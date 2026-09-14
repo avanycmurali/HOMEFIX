@@ -1,7 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import healthRoutes from './routes/healthRoutes.js';
+import authRoutes from './routes/authRoutes.js';
+import serviceRoutes from './routes/serviceRoutes.js';
+import bookingRoutes from './routes/bookingRoutes.js';
 import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.js';
 import { checkDbConnection } from './config/db.js';
 
@@ -16,6 +20,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Serve static uploaded complaint photos
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Root welcome route
 app.get('/', (req, res) => {
   res.json({
@@ -24,12 +31,18 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/api/health',
+      auth: '/api/auth',
+      services: '/api/services',
+      bookings: '/api/bookings',
     },
   });
 });
 
 // API Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/bookings', bookingRoutes);
 
 // Fallback error handlers
 app.use(notFoundHandler);

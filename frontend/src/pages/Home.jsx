@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export default function Home({ healthData, healthLoading, onRefreshHealth }) {
   return (
@@ -15,11 +16,14 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
           </p>
 
           <div className="d-flex justify-content-center gap-3 flex-wrap">
-            <a href="#modules" className="btn btn-light btn-lg px-4 fw-semibold text-primary shadow-sm">
-              <i className="bi bi-grid-fill me-2"></i> Explore Modules
-            </a>
-            <a href="#system-status" className="btn btn-outline-light btn-lg px-4">
-              <i className="bi bi-activity me-2"></i> System Health
+            <Link to="/register" className="btn btn-light btn-lg px-4 fw-semibold text-primary shadow-sm">
+              <i className="bi bi-person-plus-fill me-2"></i> Register Now
+            </Link>
+            <Link to="/login" className="btn btn-outline-light btn-lg px-4">
+              <i className="bi bi-box-arrow-in-right me-2"></i> Sign In
+            </Link>
+            <a href="#system-status" className="btn btn-link text-white text-decoration-none d-flex align-items-center">
+              <i className="bi bi-activity me-1"></i> System Health
             </a>
           </div>
         </div>
@@ -100,45 +104,64 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
           <div className="row g-4">
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm feature-card p-3 text-center">
-                <div className="card-body">
+                <div className="card-body d-flex flex-column">
                   <div className="icon-box bg-primary-subtle text-primary mx-auto mb-3">
                     <i className="bi bi-person-fill"></i>
                   </div>
-                  <h5 className="card-title fw-bold">1. User</h5>
-                  <p className="card-text text-muted small">
+                  <h5 className="card-title fw-bold">1. Customer</h5>
+                  <p className="card-text text-muted small flex-grow-1">
                     Registers complaints, uploads problem photos, receives intelligent technician recommendations, and tracks service completion.
                   </p>
-                  <span className="badge bg-primary-subtle text-primary">Customer Portal</span>
+                  <div className="mt-3">
+                    <Link to="/login?role=user" className="btn btn-outline-primary btn-sm w-100 mb-2">
+                      Customer Portal
+                    </Link>
+                    <Link to="/register" className="small text-muted text-decoration-none">
+                      New here? Sign Up
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm feature-card p-3 text-center">
-                <div className="card-body">
-                  <div className="icon-box bg-success-subtle text-success mx-auto mb-3">
+                <div className="card-body d-flex flex-column">
+                  <div className="icon-box bg-warning-subtle text-warning mx-auto mb-3">
                     <i className="bi bi-tools"></i>
                   </div>
                   <h5 className="card-title fw-bold">2. Technician</h5>
-                  <p className="card-text text-muted small">
+                  <p className="card-text text-muted small flex-grow-1">
                     Accepts/rejects assigned service requests, views problem details/photos, receives tool recommendations, and updates service progress.
                   </p>
-                  <span className="badge bg-success-subtle text-success">Technician Portal</span>
+                  <div className="mt-3">
+                    <Link to="/login?role=technician" className="btn btn-outline-warning btn-sm text-dark w-100 mb-2">
+                      Technician Portal
+                    </Link>
+                    <Link to="/register" className="small text-muted text-decoration-none">
+                      Join as a Technician
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
 
             <div className="col-md-4">
               <div className="card h-100 border-0 shadow-sm feature-card p-3 text-center">
-                <div className="card-body">
-                  <div className="icon-box bg-warning-subtle text-dark mx-auto mb-3">
+                <div className="card-body d-flex flex-column">
+                  <div className="icon-box bg-danger-subtle text-danger mx-auto mb-3">
                     <i className="bi bi-shield-lock-fill"></i>
                   </div>
                   <h5 className="card-title fw-bold">3. Administrator</h5>
-                  <p className="card-text text-muted small">
+                  <p className="card-text text-muted small flex-grow-1">
                     Manages users, verifies technicians, oversees service categories, monitors active bookings, and views analytics reports.
                   </p>
-                  <span className="badge bg-warning-subtle text-dark">Admin Dashboard</span>
+                  <div className="mt-3">
+                    <Link to="/login?role=admin" className="btn btn-outline-danger btn-sm w-100 mb-2">
+                      Admin Dashboard
+                    </Link>
+                    <span className="small text-muted">Authorized Personnel Only</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -159,7 +182,8 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
                 title: 'Registration & Authentication',
                 icon: 'bi-key-fill',
                 color: 'text-primary bg-primary-subtle',
-                desc: 'Role-based registration and secure login for Users, Technicians, and Admin.',
+                desc: 'Role-based registration and secure login for Users, Technicians, and Admin with bcrypt hashing & JWT tokens.',
+                active: true,
               },
               {
                 num: '02',
@@ -167,6 +191,7 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
                 icon: 'bi-file-earmark-medical',
                 color: 'text-info bg-info-subtle',
                 desc: 'Service category selection, problem description, photo upload, and location tagging.',
+                active: false,
               },
               {
                 num: '03',
@@ -174,6 +199,7 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
                 icon: 'bi-robot',
                 color: 'text-success bg-success-subtle',
                 desc: 'Rule-based engine matching technicians by service category, location, rating, experience, and fee.',
+                active: false,
               },
               {
                 num: '04',
@@ -181,6 +207,7 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
                 icon: 'bi-credit-card-2-front',
                 color: 'text-danger bg-danger-subtle',
                 desc: 'Service status lifecycle (Pending, Accepted, In-Progress, Completed) with Razorpay integration readiness.',
+                active: false,
               },
               {
                 num: '05',
@@ -188,19 +215,30 @@ export default function Home({ healthData, healthLoading, onRefreshHealth }) {
                 icon: 'bi-clock-history',
                 color: 'text-secondary bg-secondary-subtle',
                 desc: 'Complete audit history of bookings, customer reviews, ratings, and technician verification.',
+                active: false,
               },
             ].map((module) => (
               <div className="col-md-6 col-lg-4" key={module.num}>
-                <div className="card h-100 border-0 shadow-sm feature-card p-3">
+                <div className={`card h-100 border-0 shadow-sm feature-card p-3 ${module.active ? 'border border-primary' : ''}`}>
                   <div className="card-body">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <div className={`icon-box ${module.color}`}>
                         <i className={`bi ${module.icon}`}></i>
                       </div>
-                      <span className="fs-5 fw-bold text-black-50">Module {module.num}</span>
+                      <div className="d-flex align-items-center gap-2">
+                        {module.active && <span className="badge bg-success">Ready</span>}
+                        <span className="fs-5 fw-bold text-black-50">Module {module.num}</span>
+                      </div>
                     </div>
                     <h5 className="card-title fw-bold mb-2">{module.title}</h5>
                     <p className="card-text text-muted small mb-0">{module.desc}</p>
+                    {module.active && (
+                      <div className="mt-3 pt-2 border-top">
+                        <Link to="/register" className="btn btn-sm btn-link p-0 text-decoration-none fw-semibold">
+                          Try Registration &rarr;
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
