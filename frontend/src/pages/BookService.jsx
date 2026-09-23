@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getServices, createBookingApi } from '../services/api.js';
+import { getServices, createBookingApi, selectTechnicianApi } from '../services/api.js';
+import { TechnicianRecommendationsList } from '../components/TechnicianRecommendationCard.jsx';
 
 const TIME_SLOTS = [
   'Morning (09:00 AM - 12:00 PM)',
@@ -19,6 +20,17 @@ export default function BookService() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [successBooking, setSuccessBooking] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+
+  // Technician selection modal state
+  const [confirmingTechnician, setConfirmingTechnician] = useState(null);
+  const [selectingLoading, setSelectingLoading] = useState(false);
+  const [selectedTech, setSelectedTech] = useState(null);
+
+  // Location / Geolocation State
+  const [geoCoords, setGeoCoords] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState('');
 
   // Form State
   const [selectedServiceId, setSelectedServiceId] = useState('');
@@ -95,6 +107,29 @@ export default function BookService() {
     }
   };
 
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage('Geolocation is not supported by your browser.');
+      return;
+    }
+    setLocating(true);
+    setLocationMessage('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false);
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lon = parseFloat(pos.coords.longitude.toFixed(6));
+        setGeoCoords({ lat, lon });
+        setLocationMessage(`GPS coordinates attached (${lat}, ${lon})`);
+      },
+      (err) => {
+        setLocating(false);
+        setLocationMessage(`GPS unavailable (${err.message}). City/pincode coordinates will be used.`);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   const selectedService = services.find((s) => s.id.toString() === selectedServiceId);
 
   const handleSubmit = async (e) => {
@@ -135,6 +170,10 @@ export default function BookService() {
     formData.append('service_address', serviceAddress.trim());
     formData.append('city', city.trim());
     formData.append('pincode', pincode.trim());
+    if (geoCoords?.lat != null && geoCoords?.lon != null) {
+      formData.append('latitude', geoCoords.lat);
+      formData.append('longitude', geoCoords.lon);
+    }
     if (imageFile) {
       formData.append('problem_image', imageFile);
     }
@@ -144,9 +183,33 @@ export default function BookService() {
 
     if (result.ok && result.data.success) {
       setSuccessBooking(result.data.booking);
+      setRecommendations(result.data.recommendations || []);
+      setSelectedTech(null);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
       setError(result.data?.message || 'Failed to submit service booking.');
+    }
+  };
+
+  const handleConfirmTechnician = async () => {
+    if (!successBooking || !confirmingTechnician) return;
+    setSelectingLoading(true);
+    const res = await selectTechnicianApi(
+      successBooking.id,
+      confirmingTechnician.technicianId,
+      token
+    );
+    setSelectingLoading(false);
+    if (res.ok && res.data.success) {
+      setSelectedTech(confirmingTechnician);
+      setConfirmingTechnician(null);
+      setSuccessBooking((prev) => ({
+        ...prev,
+        booking_status: 'customer_selected_technician',
+        technician_id: confirmingTechnician.technicianId,
+      }));
+    } else {
+      alert(res.data?.message || 'Failed to select technician.');
     }
   };
 
@@ -155,16 +218,36 @@ export default function BookService() {
     return (
       <div className="container py-5">
         <div className="row justify-content-center">
-          <div className="col-12 col-md-8 col-lg-6">
-            <div className="card shadow border-0 rounded-4 overflow-hidden text-center p-4 p-md-5">
-              <div className="d-inline-flex align-items-center justify-content-center bg-success text-white p-3 rounded-circle mx-auto mb-3 shadow-sm" style={{ width: '75px', height: '75px' }}>
-                <i className="bi bi-check-lg fs-1"></i>
+          <div className="col-12 col-lg-9">
+            <div className="card shadow border-0 rounded-4 overflow-hidden p-4 p-md-5 mb-4">
+              <div className="text-center mb-4">
+                <div
+                  className="d-inline-flex align-items-center justify-content-center bg-success text-white p-3 rounded-circle mx-auto mb-3 shadow-sm"
+                  style={{ width: '70px', height: '70px' }}
+                >
+                  <i className="bi bi-check-lg fs-1"></i>
+                </div>
+                <h2 className="fw-bold text-dark mb-1">Complaint Registered Successfully!</h2>
+                <p className="text-muted mb-0">
+                  Your home service request has been scheduled. Please choose a recommended technician below to confirm.
+                </p>
               </div>
-              <h2 className="fw-bold text-dark mb-2">Complaint Registered!</h2>
-              <p className="text-muted mb-4">
-                Your home service request has been scheduled successfully.
-              </p>
 
+              {selectedTech && (
+                <div className="alert alert-success d-flex align-items-center gap-3 mb-4 p-3 rounded-3 shadow-sm text-start">
+                  <i className="bi bi-check-circle-fill fs-3 text-success"></i>
+                  <div>
+                    <strong className="d-block text-success">
+                      Technician Selected: {selectedTech.technicianName}
+                    </strong>
+                    <span className="small text-muted">
+                      Your request has been dispatched. Status: <strong>Waiting for technician confirmation</strong>.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Booking Summary Box */}
               <div className="bg-light rounded-3 p-3 border mb-4 text-start">
                 <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
                   <span className="text-muted small">Booking Reference</span>
@@ -181,9 +264,17 @@ export default function BookService() {
                   </span>
                 </div>
                 <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                  <span className="text-muted small">Urgency Level</span>
-                  <span className={`badge ${successBooking.urgency_level === 'emergency' ? 'bg-danger' : successBooking.urgency_level === 'high' ? 'bg-warning text-dark' : 'bg-secondary'}`}>
-                    {successBooking.urgency_level?.toUpperCase()}
+                  <span className="text-muted small">Service Location</span>
+                  <span className="fw-semibold text-dark">
+                    {successBooking.service_address}, {successBooking.city} - {successBooking.pincode}
+                  </span>
+                </div>
+                <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                  <span className="text-muted small">Current Status</span>
+                  <span className="badge bg-warning text-dark text-uppercase">
+                    {successBooking.booking_status === 'customer_selected_technician'
+                      ? 'Waiting Confirmation'
+                      : 'Pending Assignment'}
                   </span>
                 </div>
                 <div className="d-flex justify-content-between align-items-center">
@@ -192,15 +283,29 @@ export default function BookService() {
                 </div>
               </div>
 
-              <div className="d-flex gap-2 justify-content-center flex-wrap">
+              {/* RECOMMENDED TECHNICIANS SECTION (Requirements 1, 2, 3, 4, 5) */}
+              <div className="text-start">
+                <TechnicianRecommendationsList
+                  recommendations={recommendations}
+                  title="Recommended Technicians for Your Service"
+                  onSelectTechnician={(tech) => setConfirmingTechnician(tech)}
+                  selectedTechnicianId={selectedTech?.technicianId}
+                  selectable={!selectedTech}
+                  isSelecting={selectingLoading}
+                />
+              </div>
+
+              <div className="d-flex gap-2 justify-content-center flex-wrap pt-3 border-top mt-4">
                 <Link to="/my-bookings" className="btn btn-primary btn-lg px-4 fw-semibold shadow-sm">
-                  <i className="bi bi-card-checklist me-1"></i> View My Bookings
+                  <i className="bi bi-card-checklist me-1"></i> Track in My Bookings
                 </Link>
                 <button
                   type="button"
                   className="btn btn-outline-secondary btn-lg px-4"
                   onClick={() => {
                     setSuccessBooking(null);
+                    setRecommendations([]);
+                    setSelectedTech(null);
                     setProblemTitle('');
                     setProblemDescription('');
                     removeImage();
@@ -212,6 +317,114 @@ export default function BookService() {
             </div>
           </div>
         </div>
+
+        {/* CONFIRM TECHNICIAN MODAL */}
+        {confirmingTechnician && (
+          <div
+            className="modal fade show d-block"
+            tabIndex="-1"
+            style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content border-0 rounded-4 shadow overflow-hidden">
+                <div className="modal-header bg-primary text-white">
+                  <div className="d-flex align-items-center gap-2">
+                    <i className="bi bi-person-check-fill fs-5"></i>
+                    <h5 className="modal-title fw-bold mb-0">Confirm Technician</h5>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-close btn-close-white"
+                    onClick={() => setConfirmingTechnician(null)}
+                    disabled={selectingLoading}
+                  ></button>
+                </div>
+
+                <div className="modal-body p-4 text-start">
+                  <p className="text-dark mb-3">
+                    You are selecting <strong>{confirmingTechnician.technicianName}</strong> for this service.
+                  </p>
+
+                  <div className="bg-light p-3 rounded-3 border mb-3">
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Technician:</span>
+                      <strong className="text-dark">{confirmingTechnician.technicianName}</strong>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Specialization:</span>
+                      <span className="text-dark">{confirmingTechnician.serviceName}</span>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Match Percentage:</span>
+                      <span className="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold">
+                        <i className="bi bi-stars text-warning me-1"></i>
+                        {confirmingTechnician.matchScore}%
+                      </span>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Distance:</span>
+                      <strong className="text-success">
+                        {confirmingTechnician.distanceKm !== null && confirmingTechnician.distanceKm !== undefined
+                          ? `${confirmingTechnician.distanceKm} km`
+                          : confirmingTechnician.city || 'Nearby'}
+                      </strong>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Rating:</span>
+                      <span className="badge bg-warning text-dark">
+                        <i className="bi bi-star-fill me-1"></i>
+                        {confirmingTechnician.averageRating ? Number(confirmingTechnician.averageRating).toFixed(1) : '5.0'} / 5.0
+                      </span>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                      <span className="text-muted small">Experience:</span>
+                      <strong className="text-dark">{confirmingTechnician.experienceYears || 0} Years</strong>
+                    </div>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <span className="text-muted small">Visiting Fee:</span>
+                      <strong className="text-primary fs-6">
+                        ₹{confirmingTechnician.visitingCharges || 150}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <p className="small text-muted mb-0">
+                    <i className="bi bi-info-circle me-1 text-primary"></i>
+                    Your service request will be sent to this technician. The status will update to <strong>Waiting for technician confirmation</strong>.
+                  </p>
+                </div>
+
+                <div className="modal-footer bg-light border-top">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm px-4"
+                    onClick={() => setConfirmingTechnician(null)}
+                    disabled={selectingLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm px-4 fw-semibold shadow-sm"
+                    onClick={handleConfirmTechnician}
+                    disabled={selectingLoading}
+                  >
+                    {selectingLoading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Confirming...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-check2-circle me-1"></i> Confirm Technician
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -424,7 +637,19 @@ export default function BookService() {
                   </div>
 
                   <div className="col-12">
-                    <label className="form-label small fw-semibold text-secondary">Service Address *</label>
+                    <div className="d-flex justify-content-between align-items-center mb-1">
+                      <label className="form-label small fw-semibold text-secondary mb-0">Service Address *</label>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm py-0 px-2 d-inline-flex align-items-center gap-1"
+                        onClick={handleDetectLocation}
+                        disabled={locating}
+                        title="Attach your device's latitude/longitude for precise Haversine distance calculation"
+                      >
+                        <i className={`bi bi-geo-alt-fill text-danger ${locating ? 'spin' : ''}`}></i>
+                        <span>{locating ? 'Detecting GPS...' : geoCoords ? 'GPS Attached' : 'Auto-Detect GPS Location'}</span>
+                      </button>
+                    </div>
                     <input
                       type="text"
                       className="form-control"
@@ -433,6 +658,12 @@ export default function BookService() {
                       onChange={(e) => setServiceAddress(e.target.value)}
                       required
                     />
+                    {locationMessage && (
+                      <small className={`d-block mt-1 ${geoCoords ? 'text-success' : 'text-muted'}`}>
+                        <i className={`bi ${geoCoords ? 'bi-check-circle-fill text-success' : 'bi-info-circle'} me-1`}></i>
+                        {locationMessage}
+                      </small>
+                    )}
                   </div>
 
                   <div className="col-12 col-md-6">

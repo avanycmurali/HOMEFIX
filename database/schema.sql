@@ -77,6 +77,8 @@ CREATE TABLE technician_profiles (
     service_area VARCHAR(100) NULL,
     city VARCHAR(50) NOT NULL,
     pincode VARCHAR(10) NOT NULL,
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
     average_rating DECIMAL(3, 2) DEFAULT 0.00,
     total_reviews INT DEFAULT 0,
     total_jobs_completed INT DEFAULT 0,
@@ -115,13 +117,17 @@ CREATE TABLE bookings (
     service_address TEXT NOT NULL,
     city VARCHAR(50) NOT NULL,
     pincode VARCHAR(10) NOT NULL,
+    latitude DECIMAL(10, 8) NULL,
+    longitude DECIMAL(11, 8) NULL,
     scheduled_date DATE NOT NULL,
     scheduled_time_slot VARCHAR(50) NOT NULL,
     urgency_level ENUM('low', 'medium', 'high', 'emergency') DEFAULT 'medium',
     booking_status ENUM(
         'pending',
         'technician_assigned',
+        'customer_selected_technician',
         'accepted',
+        'technician_rejected',
         'in_progress',
         'completed',
         'cancelled',
@@ -130,6 +136,9 @@ CREATE TABLE bookings (
     estimated_cost DECIMAL(10, 2) DEFAULT 0.00,
     final_cost DECIMAL(10, 2) DEFAULT 0.00,
     cancellation_reason TEXT NULL,
+    rejection_reason TEXT NULL,
+    service_notes TEXT NULL,
+    completed_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_booking_user FOREIGN KEY (user_id) 
@@ -203,7 +212,9 @@ CREATE TABLE service_status_logs (
     status ENUM(
         'pending',
         'technician_assigned',
+        'customer_selected_technician',
         'accepted',
+        'technician_rejected',
         'in_progress',
         'completed',
         'cancelled',
@@ -315,9 +326,9 @@ INSERT INTO services (name, description, base_price, icon, is_active) VALUES
 ('Deep Home Cleaning', 'Kitchen deep cleaning, bathroom sanitization, sofa and carpet shampooing', 449.00, 'bi-stars', TRUE);
 
 -- 3. Insert Sample Technician Profiles (for Intelligent Recommendation Engine testing)
-INSERT INTO technician_profiles (user_id, service_id, experience_years, qualification, hourly_rate, visiting_charges, service_area, city, pincode, average_rating, total_reviews, total_jobs_completed, availability_status, verification_status, bio) VALUES
-(3, 1, 5, 'Certified Electrician (ITI Electrical)', 250.00, 150.00, 'Koramangala / Indiranagar', 'Bangalore', '560034', 4.80, 42, 65, 'available', 'verified', 'Experienced residential electrician specializing in wiring and circuit repairs.'),
-(4, 2, 7, 'Licensed Master Plumber', 200.00, 120.00, 'Indiranagar / Domlur', 'Bangalore', '560038', 4.60, 38, 52, 'available', 'verified', 'Expert in leak detection, bathroom fixtures, and emergency pipe repairs.');
+INSERT INTO technician_profiles (user_id, service_id, experience_years, qualification, hourly_rate, visiting_charges, service_area, city, pincode, latitude, longitude, average_rating, total_reviews, total_jobs_completed, availability_status, verification_status, bio) VALUES
+(3, 1, 5, 'Certified Electrician (ITI Electrical)', 250.00, 150.00, 'Koramangala / Indiranagar', 'Bangalore', '560034', 12.93520000, 77.62450000, 4.80, 42, 65, 'available', 'verified', 'Experienced residential electrician specializing in wiring and circuit repairs.'),
+(4, 2, 7, 'Licensed Master Plumber', 200.00, 120.00, 'Indiranagar / Domlur', 'Bangalore', '560038', 12.97840000, 77.64080000, 4.60, 38, 52, 'available', 'verified', 'Expert in leak detection, bathroom fixtures, and emergency pipe repairs.');
 
 -- 4. Insert Sample Tool & Material Suggestions (for Technicians)
 INSERT INTO tool_material_suggestions (service_id, issue_keyword, recommended_tools, required_materials, safety_guidelines) VALUES

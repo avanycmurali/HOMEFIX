@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getMyBookingsApi, getBookingDetailsApi, cancelBookingApi } from '../services/api.js';
+import {
+  getMyBookingsApi,
+  getBookingDetailsApi,
+  cancelBookingApi,
+  getBookingRecommendationsApi,
+  selectTechnicianApi,
+} from '../services/api.js';
+import {
+  TechnicianRecommendationsList,
+  TechnicianRecommendationCard,
+} from '../components/TechnicianRecommendationCard.jsx';
 
 export default function MyBookings() {
   const navigate = useNavigate();
@@ -18,6 +28,17 @@ export default function MyBookings() {
   const [cancellingBookingId, setCancellingBookingId] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancellingLoading, setCancellingLoading] = useState(false);
+
+  // Recommendations modal state
+  const [viewingRecommendationsBooking, setViewingRecommendationsBooking] = useState(null);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [recommendationsList, setRecommendationsList] = useState([]);
+
+  // Technician Selection Confirmation Modal State
+  const [confirmingTechnician, setConfirmingTechnician] = useState(null);
+  const [confirmingBooking, setConfirmingBooking] = useState(null);
+  const [selectingLoading, setSelectingLoading] = useState(false);
+  const [selectionSuccessMsg, setSelectionSuccessMsg] = useState('');
 
   // Photo viewer modal state
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState(null);
@@ -36,7 +57,35 @@ export default function MyBookings() {
     setError('');
     const res = await getMyBookingsApi(token);
     if (res.ok && res.data.success) {
-      setBookings(res.data.data);
+      const rawBookings = res.data.data || [];
+      // Auto-hydrate recommendations for any pending/unassigned/rejected booking if missing
+      const enhancedBookings = await Promise.all(
+        rawBookings.map(async (b) => {
+          if (
+            ['pending', 'customer_selected_technician', 'technician_rejected', 'technician_assigned'].includes(b.booking_status) &&
+            !b.technician_name &&
+            (!b.top_recommendation && (!b.recommendations || b.recommendations.length === 0))
+          ) {
+            try {
+              const recRes = await getBookingRecommendationsApi(b.id, token);
+              if (recRes.ok && recRes.data.success) {
+                return {
+                  ...b,
+                  recommendations: recRes.data.data || [],
+                  top_recommendation:
+                    recRes.data.top_recommendation ||
+                    (recRes.data.data && recRes.data.data[0]) ||
+                    null,
+                };
+              }
+            } catch (e) {
+              console.error('Error auto-hydrating recommendations for booking', b.id, e);
+            }
+          }
+          return b;
+        })
+      );
+      setBookings(enhancedBookings);
     } else {
       setError(res.data?.message || 'Failed to load bookings.');
     }
@@ -47,15 +96,49 @@ export default function MyBookings() {
     fetchBookings();
   }, [token]);
 
+  // Initiate technician selection confirmation modal
+  const handleInitiateSelectTechnician = (booking, technician) => {
+    setConfirmingBooking(booking);
+    setConfirmingTechnician(technician);
+  };
+
+  // Confirm technician selection via PUT /api/bookings/:id/select-technician
+  const handleConfirmTechnicianSelection = async () => {
+    if (!confirmingBooking || !confirmingTechnician) return;
+    setSelectingLoading(true);
+    const res = await selectTechnicianApi(
+      confirmingBooking.id,
+      confirmingTechnician.technicianId,
+      token
+    );
+    setSelectingLoading(false);
+    if (res.ok && res.data.success) {
+      setConfirmingTechnician(null);
+      setConfirmingBooking(null);
+      if (viewingRecommendationsBooking) {
+        setViewingRecommendationsBooking(null);
+      }
+      setSelectionSuccessMsg(res.data.message || 'Technician selected! Waiting for technician confirmation.');
+      setTimeout(() => setSelectionSuccessMsg(''), 6000);
+      fetchBookings();
+    } else {
+      alert(res.data?.message || 'Failed to select technician.');
+    }
+  };
+
   // Status badge styling
   const getStatusBadge = (status) => {
     switch (status) {
       case 'completed':
-        return <span className="badge bg-success"><i className="bi bi-check2-all me-1"></i> Completed</span>;
+        return <span className="badge bg-success"><i className="bi bi-check2-all me-1"></i> Service Completed</span>;
       case 'in_progress':
-        return <span className="badge bg-info text-dark"><i className="bi bi-gear-fill me-1"></i> In Progress</span>;
+        return <span className="badge bg-info text-dark"><i className="bi bi-gear-fill me-1"></i> Service In Progress</span>;
       case 'accepted':
-        return <span className="badge bg-primary"><i className="bi bi-hand-thumbs-up-fill me-1"></i> Accepted</span>;
+        return <span className="badge bg-primary"><i className="bi bi-person-check-fill me-1"></i> Technician Confirmed</span>;
+      case 'customer_selected_technician':
+        return <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle"><i className="bi bi-clock-history me-1"></i> Waiting Confirmation</span>;
+      case 'technician_rejected':
+        return <span className="badge bg-danger-subtle text-danger border border-danger-subtle"><i className="bi bi-person-x-fill me-1"></i> Tech Declined</span>;
       case 'technician_assigned':
         return <span className="badge bg-primary-subtle text-primary border border-primary-subtle"><i className="bi bi-person-check-fill me-1"></i> Tech Assigned</span>;
       case 'cancelled':
@@ -107,10 +190,27 @@ export default function MyBookings() {
     }
   };
 
+  // Open Recommended Technicians Modal
+  const handleOpenRecommendations = async (booking) => {
+    setViewingRecommendationsBooking(booking);
+    if (booking.recommendations && booking.recommendations.length > 0) {
+      setRecommendationsList(booking.recommendations);
+    } else {
+      setLoadingRecommendations(true);
+      const res = await getBookingRecommendationsApi(booking.id, token);
+      if (res.ok && res.data.success) {
+        setRecommendationsList(res.data.data || []);
+      } else {
+        setRecommendationsList([]);
+      }
+      setLoadingRecommendations(false);
+    }
+  };
+
   // Filter Bookings
   const filteredBookings = bookings.filter((b) => {
     if (activeFilter === 'all') return true;
-    if (activeFilter === 'pending') return ['pending', 'technician_assigned'].includes(b.booking_status);
+    if (activeFilter === 'pending') return ['pending', 'customer_selected_technician', 'technician_rejected', 'technician_assigned'].includes(b.booking_status);
     if (activeFilter === 'in_progress') return ['accepted', 'in_progress'].includes(b.booking_status);
     if (activeFilter === 'completed') return b.booking_status === 'completed';
     if (activeFilter === 'cancelled') return ['cancelled', 'rejected'].includes(b.booking_status);
@@ -134,6 +234,17 @@ export default function MyBookings() {
           </Link>
         </div>
       </div>
+
+      {/* Selection Success Notification */}
+      {selectionSuccessMsg && (
+        <div className="alert alert-success alert-dismissible fade show shadow-sm rounded-3 mb-4 d-flex align-items-center" role="alert">
+          <i className="bi bi-check-circle-fill fs-5 me-2"></i>
+          <div>
+            <strong>{selectionSuccessMsg}</strong>
+          </div>
+          <button type="button" className="btn-close ms-auto" onClick={() => setSelectionSuccessMsg('')}></button>
+        </div>
+      )}
 
       {/* Filter Tabs */}
       <div className="nav nav-pills bg-white p-1 rounded-3 border mb-4 shadow-sm" role="tablist">
@@ -238,22 +349,239 @@ export default function MyBookings() {
                     </div>
                   </div>
 
-                  {/* Technician Info (if assigned) */}
-                  {booking.technician_name ? (
-                    <div className="p-2 px-3 bg-success-subtle text-success-emphasis rounded-3 border border-success-subtle mb-3 d-flex justify-content-between align-items-center">
-                      <div>
-                        <small className="d-block text-muted">Assigned Technician</small>
-                        <strong className="text-dark">{booking.technician_name}</strong> &bull;{' '}
-                        <small>+91 {booking.technician_phone}</small>
+                  {/* Technician Info / Intelligent Recommendation Preview */}
+                  {booking.booking_status === 'customer_selected_technician' ? (
+                    <div className="p-3 bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-3 mb-3">
+                      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-2 border-bottom border-warning-subtle">
+                        <div className="d-flex align-items-center gap-2">
+                          <div className="spinner-grow spinner-grow-sm text-warning" role="status"></div>
+                          <strong className="fs-6">Waiting for technician confirmation</strong>
+                        </div>
+                        <span className="badge bg-warning text-dark fw-bold">Selection Sent</span>
                       </div>
-                      <span className="badge bg-warning text-dark">
-                        <i className="bi bi-star-fill me-1"></i>
-                        {booking.technician_rating || '5.0'}
-                      </span>
+
+                      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                        <div>
+                          <small className="text-muted d-block">Selected Technician</small>
+                          <strong className="text-dark fs-6">
+                            {booking.selected_technician?.technicianName || booking.technician_name || 'Selected Technician'}
+                          </strong>
+                          <small className="text-muted d-block">
+                            {booking.selected_technician?.experienceYears || 0} yrs exp &bull; {booking.service_name}
+                          </small>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold">
+                            <i className="bi bi-stars text-warning me-1"></i>
+                            {booking.selected_technician?.matchScore || 90}% Match
+                          </span>
+                          <span className="badge bg-warning text-dark">
+                            <i className="bi bi-star-fill me-1"></i>
+                            {booking.selected_technician?.averageRating || booking.technician_rating || '5.0'}
+                          </span>
+                          {booking.selected_technician?.distanceKm !== null && booking.selected_technician?.distanceKm !== undefined && (
+                            <span className="badge bg-light text-success border font-monospace">
+                              <i className="bi bi-geo-alt-fill text-danger me-1"></i>
+                              {booking.selected_technician.distanceKm} km
+                            </span>
+                          )}
+                          <span className="badge bg-light text-primary border">
+                            ₹{booking.selected_technician?.visitingCharges || booking.technician_visiting_charges || 150} fee
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="d-flex justify-content-between align-items-center pt-2 border-top border-warning-subtle small flex-wrap gap-2">
+                        <span className="text-muted">
+                          <i className="bi bi-calendar-event me-1 text-primary"></i>
+                          Appointment: {new Date(booking.scheduled_date).toLocaleDateString()} &bull; {booking.scheduled_time_slot}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold"
+                          onClick={() => handleOpenRecommendations(booking)}
+                        >
+                          <i className="bi bi-stars me-1"></i> View Recommendations
+                        </button>
+                      </div>
+                    </div>
+                  ) : booking.booking_status === 'technician_rejected' ? (
+                    <div className="p-3 bg-danger-subtle text-danger-emphasis border border-danger-subtle rounded-3 mb-3">
+                      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-2 border-bottom border-danger-subtle">
+                        <div className="d-flex align-items-center gap-2">
+                          <i className="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+                          <strong className="fs-6">Technician declined — choose another technician</strong>
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-primary fw-semibold px-3 shadow-sm"
+                          onClick={() => handleOpenRecommendations(booking)}
+                        >
+                          <i className="bi bi-people-fill me-1"></i> Choose Another Technician
+                        </button>
+                      </div>
+                      <div className="bg-white p-2 rounded-2 border small">
+                        <span className="text-danger fw-semibold d-block">
+                          <i className="bi bi-info-circle-fill me-1"></i> Rejection Reason:
+                        </span>
+                        <span className="text-muted">
+                          {booking.rejection_reason || 'Technician was unavailable at the requested appointment time.'}
+                        </span>
+                      </div>
+                      <div className="mt-2 pt-2 border-top border-danger-subtle d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span className="small text-muted">
+                          Review remaining recommended technicians to select an alternative.
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-danger py-0 px-2 fw-semibold"
+                          onClick={() => handleOpenRecommendations(booking)}
+                        >
+                          View Remaining Technicians
+                        </button>
+                      </div>
+                    </div>
+                  ) : booking.technician_name ? (
+                    <div className={`p-3 rounded-3 border mb-3 ${
+                      booking.booking_status === 'completed'
+                        ? 'bg-success-subtle text-success-emphasis border-success-subtle'
+                        : booking.booking_status === 'in_progress'
+                        ? 'bg-info-subtle text-dark border-info-subtle'
+                        : 'bg-primary-subtle text-dark border-primary-subtle'
+                    }`}>
+                      <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2 pb-2 border-bottom border-opacity-25 border-secondary">
+                        <div>
+                          <div className="d-flex align-items-center gap-1 mb-1">
+                            {booking.booking_status === 'completed' && (
+                              <i className="bi bi-check2-all text-success fs-5"></i>
+                            )}
+                            {booking.booking_status === 'in_progress' && (
+                              <span className="spinner-grow spinner-grow-sm text-info me-1" role="status"></span>
+                            )}
+                            {booking.booking_status === 'accepted' && (
+                              <i className="bi bi-person-check-fill text-primary me-1"></i>
+                            )}
+                            <strong className="fs-6 text-dark">
+                              {booking.booking_status === 'completed'
+                                ? 'Service Completed'
+                                : booking.booking_status === 'in_progress'
+                                ? 'Service In Progress'
+                                : 'Technician Confirmed'}
+                            </strong>
+                          </div>
+                          <strong className="text-dark fs-6 d-block">{booking.technician_name}</strong>
+                          <small className="text-muted">
+                            <i className="bi bi-telephone-fill me-1 text-success"></i>
+                            +91 {booking.technician_phone}
+                          </small>
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-warning text-dark">
+                            <i className="bi bi-star-fill me-1"></i>
+                            {booking.technician_rating || '5.0'}
+                          </span>
+                          <span className="badge bg-light text-primary border">
+                            ₹{booking.technician_visiting_charges || 150} visiting
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="small text-muted d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <span>
+                          <i className="bi bi-calendar2-check me-1 text-primary"></i>
+                          Appointment: {new Date(booking.scheduled_date).toLocaleDateString()} &bull; {booking.scheduled_time_slot}
+                        </span>
+                        <span className={`badge ${
+                          booking.booking_status === 'completed'
+                            ? 'bg-success text-white'
+                            : booking.booking_status === 'in_progress'
+                            ? 'bg-info text-dark'
+                            : 'bg-primary text-white'
+                        }`}>
+                          {booking.booking_status === 'completed'
+                            ? 'Service Completed'
+                            : booking.booking_status === 'in_progress'
+                            ? 'Service In Progress'
+                            : 'Technician Confirmed'}
+                        </span>
+                      </div>
+
+                      {/* If completed, show completion time and technician service notes */}
+                      {booking.booking_status === 'completed' && (
+                        <div className="mt-2 pt-2 border-top border-success-subtle">
+                          {booking.completed_at && (
+                            <div className="small text-muted mb-1">
+                              <i className="bi bi-clock-history me-1 text-success"></i>
+                              Completed on:{' '}
+                              <strong>
+                                {new Date(booking.completed_at).toLocaleString('en-IN', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short',
+                                })}
+                              </strong>
+                            </div>
+                          )}
+                          {booking.service_notes && (
+                            <div className="bg-white p-2 rounded border small mt-1">
+                              <strong className="text-dark d-block">
+                                <i className="bi bi-journal-text me-1 text-primary"></i>
+                                Service Notes from Technician:
+                              </strong>
+                              <span className="text-secondary">{booking.service_notes}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* If in progress, show indicator message */}
+                      {booking.booking_status === 'in_progress' && (
+                        <div className="mt-2 pt-2 border-top border-info-subtle small text-secondary">
+                          <i className="bi bi-tools me-1 text-info"></i>
+                          Technician is actively working on your repair. You will see completion details once finished.
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="p-2 px-3 bg-light rounded-3 border text-muted small mb-3">
-                      <i className="bi bi-info-circle me-1"></i> Technician assignment in progress by recommendation system.
+                    <div className="mb-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                        <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 small fw-semibold">
+                          <i className="bi bi-search me-1 text-primary"></i>
+                          Finding recommended technicians
+                        </span>
+                        {booking.recommendations && booking.recommendations.length > 1 && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold"
+                            onClick={() => handleOpenRecommendations(booking)}
+                          >
+                            <i className="bi bi-people-fill me-1"></i> View All ({booking.recommendations.length}) Matches
+                          </button>
+                        )}
+                      </div>
+                      {(booking.top_recommendation || (booking.recommendations && booking.recommendations.length > 0)) ? (
+                        <TechnicianRecommendationCard
+                          rec={booking.top_recommendation || booking.recommendations[0]}
+                          rank={1}
+                          defaultExpanded={true}
+                          onSelectTechnician={(tech) => handleInitiateSelectTechnician(booking, tech)}
+                          selectable={true}
+                          isSelecting={selectingLoading}
+                        />
+                      ) : (
+                        <div className="p-3 bg-light rounded-3 border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                          <div className="small text-muted">
+                            <i className="bi bi-hourglass-split text-primary me-1"></i>
+                            Finding recommended technicians...
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold"
+                            onClick={() => handleOpenRecommendations(booking)}
+                          >
+                            <i className="bi bi-stars me-1"></i> View Matches
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -280,6 +608,16 @@ export default function MyBookings() {
                     </div>
 
                     <div className="d-flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-success btn-sm d-flex align-items-center gap-1"
+                        onClick={() => handleOpenRecommendations(booking)}
+                        title="View recommended technician rankings & criteria breakdown"
+                      >
+                        <i className="bi bi-stars"></i>
+                        <span>Recommendations</span>
+                      </button>
+
                       <button
                         type="button"
                         className="btn btn-outline-primary btn-sm"
@@ -354,12 +692,216 @@ export default function MyBookings() {
                     </li>
                   ))}
                 </ul>
+
+                {/* Recommendations in Details Modal */}
+                {selectedBookingDetails.recommendations && selectedBookingDetails.recommendations.length > 0 && (
+                  <div className="mt-4 pt-3 border-top">
+                    <TechnicianRecommendationsList
+                      recommendations={selectedBookingDetails.recommendations}
+                      title="Intelligent Technician Recommendations (Top Matches)"
+                    />
+                  </div>
+                )}
               </div>
               <div className="modal-footer bg-light border-top">
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm px-4"
                   onClick={() => setSelectedBookingDetails(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM TECHNICIAN MODAL */}
+      {confirmingTechnician && confirmingBooking && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 rounded-4 shadow overflow-hidden">
+              <div className="modal-header bg-primary text-white">
+                <div className="d-flex align-items-center gap-2">
+                  <i className="bi bi-person-check-fill fs-5"></i>
+                  <h5 className="modal-title fw-bold mb-0">Confirm Technician</h5>
+                </div>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => {
+                    setConfirmingTechnician(null);
+                    setConfirmingBooking(null);
+                  }}
+                  disabled={selectingLoading}
+                ></button>
+              </div>
+
+              <div className="modal-body p-4">
+                <p className="text-dark mb-3">
+                  You are selecting <strong>{confirmingTechnician.technicianName}</strong> for this service.
+                </p>
+
+                <div className="bg-light p-3 rounded-3 border mb-3">
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Technician:</span>
+                    <strong className="text-dark">{confirmingTechnician.technicianName}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Specialization:</span>
+                    <span className="text-dark">{confirmingTechnician.serviceName}</span>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Match Percentage:</span>
+                    <span className="badge bg-success-subtle text-success-emphasis border border-success-subtle fw-bold">
+                      <i className="bi bi-stars text-warning me-1"></i>
+                      {confirmingTechnician.matchScore}%
+                    </span>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Distance:</span>
+                    <strong className="text-success">
+                      {confirmingTechnician.distanceKm !== null && confirmingTechnician.distanceKm !== undefined
+                        ? `${confirmingTechnician.distanceKm} km`
+                        : confirmingTechnician.city || 'Nearby'}
+                    </strong>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Rating:</span>
+                    <span className="badge bg-warning text-dark">
+                      <i className="bi bi-star-fill me-1"></i>
+                      {confirmingTechnician.averageRating ? Number(confirmingTechnician.averageRating).toFixed(1) : '5.0'} / 5.0
+                    </span>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                    <span className="text-muted small">Experience:</span>
+                    <strong className="text-dark">{confirmingTechnician.experienceYears || 0} Years</strong>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <span className="text-muted small">Visiting Fee:</span>
+                    <strong className="text-primary fs-6">
+                      ₹{confirmingTechnician.visitingCharges || 150}
+                    </strong>
+                  </div>
+                </div>
+
+                <p className="small text-muted mb-0">
+                  <i className="bi bi-info-circle me-1 text-primary"></i>
+                  Your request will be sent to this technician. Booking status will update to <strong>Waiting for technician confirmation</strong>.
+                </p>
+              </div>
+
+              <div className="modal-footer bg-light border-top">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm px-4"
+                  onClick={() => {
+                    setConfirmingTechnician(null);
+                    setConfirmingBooking(null);
+                  }}
+                  disabled={selectingLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm px-4 fw-semibold shadow-sm"
+                  onClick={handleConfirmTechnicianSelection}
+                  disabled={selectingLoading}
+                >
+                  {selectingLoading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                      Confirming...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-check2-circle me-1"></i> Confirm Technician
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RECOMMENDATIONS MODAL */}
+      {viewingRecommendationsBooking && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+            <div className="modal-content border-0 rounded-4 shadow">
+              <div className="modal-header bg-light border-bottom">
+                <div>
+                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle font-monospace mb-1">
+                    {viewingRecommendationsBooking.booking_reference}
+                  </span>
+                  <h5 className="modal-title fw-bold text-dark mb-0">
+                    Intelligent Technician Recommendations
+                  </h5>
+                </div>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setViewingRecommendationsBooking(null)}
+                ></button>
+              </div>
+              <div className="modal-body p-4">
+                <div className="p-3 bg-light rounded-3 border mb-3 small">
+                  <div className="row g-2">
+                    <div className="col-12 col-md-4">
+                      <span className="text-muted d-block">Service Required:</span>
+                      <strong className="text-dark">{viewingRecommendationsBooking.service_name}</strong>
+                    </div>
+                    <div className="col-12 col-md-4">
+                      <span className="text-muted d-block">Scheduled Appointment:</span>
+                      <strong className="text-dark">
+                        {new Date(viewingRecommendationsBooking.scheduled_date).toLocaleDateString()} &bull;{' '}
+                        {viewingRecommendationsBooking.scheduled_time_slot}
+                      </strong>
+                    </div>
+                    <div className="col-12 col-md-4">
+                      <span className="text-muted d-block">Location:</span>
+                      <strong className="text-dark text-truncate d-block">
+                        {viewingRecommendationsBooking.service_address},{' '}
+                        {viewingRecommendationsBooking.city} ({viewingRecommendationsBooking.pincode})
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {loadingRecommendations ? (
+                  <div className="text-center py-5">
+                    <div className="spinner-border text-primary" role="status"></div>
+                    <p className="text-muted small mt-2">
+                      Computing technician match scores & distances...
+                    </p>
+                  </div>
+                ) : (
+                  <TechnicianRecommendationsList
+                    recommendations={recommendationsList}
+                    title="Ranked Technician Recommendations (Top Matches)"
+                    onSelectTechnician={(tech) => handleInitiateSelectTechnician(viewingRecommendationsBooking, tech)}
+                    selectedTechnicianId={viewingRecommendationsBooking.technician_id}
+                    selectable={['pending', 'technician_rejected'].includes(viewingRecommendationsBooking.booking_status)}
+                    isSelecting={selectingLoading}
+                  />
+                )}
+              </div>
+              <div className="modal-footer bg-light border-top">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm px-4"
+                  onClick={() => setViewingRecommendationsBooking(null)}
                 >
                   Close
                 </button>

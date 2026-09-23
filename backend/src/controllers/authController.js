@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db.js';
 import { signToken } from '../utils/jwt.js';
+import { PINCODE_COORDINATES } from '../services/recommendationEngine.js';
 
 // Regular expression for basic email format validation
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -124,6 +125,8 @@ export const registerTechnician = async (req, res) => {
       visiting_charges,
       service_area,
       bio,
+      latitude = null,
+      longitude = null,
     } = req.body;
 
     // Basic Validations
@@ -199,10 +202,21 @@ export const registerTechnician = async (req, res) => {
     const parsedHourly = Math.max(0, parseFloat(hourly_rate) || 250.0);
     const parsedVisiting = Math.max(0, parseFloat(visiting_charges) || 150.0);
 
+    let parsedLat = latitude != null && !isNaN(parseFloat(latitude)) ? parseFloat(latitude) : null;
+    let parsedLon = longitude != null && !isNaN(parseFloat(longitude)) ? parseFloat(longitude) : null;
+
+    if (parsedLat === null && parsedLon === null) {
+      const pin = (pincode || '').trim();
+      if (PINCODE_COORDINATES[pin]) {
+        parsedLat = PINCODE_COORDINATES[pin].lat;
+        parsedLon = PINCODE_COORDINATES[pin].lon;
+      }
+    }
+
     const [profileResult] = await connection.query(
       `INSERT INTO technician_profiles 
-       (user_id, service_id, experience_years, qualification, hourly_rate, visiting_charges, service_area, city, pincode, bio, availability_status, verification_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', 'pending')`,
+       (user_id, service_id, experience_years, qualification, hourly_rate, visiting_charges, service_area, city, pincode, latitude, longitude, bio, availability_status, verification_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', 'pending')`,
       [
         userId,
         service_id,
@@ -213,6 +227,8 @@ export const registerTechnician = async (req, res) => {
         service_area ? service_area.trim() : null,
         city.trim(),
         pincode.trim(),
+        parsedLat,
+        parsedLon,
         bio ? bio.trim() : null,
       ]
     );

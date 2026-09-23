@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test": "node src/scripts/testAuth.js && node src/scripts/testBookings.js && node src/scripts/testTechnicianRequests.js && node src/scripts/testRecommendationsCustomer.js && node src/scripts/testCustomerTechnicianSelection.js && node src/scripts/testTechnicianServiceLifecycle.js"
   },
   "keywords": [
     "homefix",

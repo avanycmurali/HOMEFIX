@@ -162,6 +162,43 @@ export const getBookingDetailsApi = async (bookingId, token) => {
 };
 
 /**
+ * Get customer-facing recommendations for a booking (Top 3 ranked technicians)
+ */
+export const getBookingRecommendationsApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/recommendations`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Customer selects a recommended technician for their booking
+ */
+export const selectTechnicianApi = async (bookingId, technicianId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/select-technician`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ technician_id: technicianId }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
  * Cancel a booking
  */
 export const cancelBookingApi = async (bookingId, reason, token) => {
@@ -199,6 +236,79 @@ export const getTechnicianJobsApi = async (token) => {
 };
 
 /**
+ * Get technician recommended service requests (pending)
+ */
+export const getTechnicianServiceRequestsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/technician/requests`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get technician assigned / accepted jobs
+ */
+export const getTechnicianAssignedJobsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/technician/assigned`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Accept a service booking (Technician)
+ */
+export const acceptBookingApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/accept`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Reject a service booking (Technician)
+ */
+export const rejectBookingApi = async (bookingId, reason, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/reject`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ reason }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
  * Get all platform bookings (Admin)
  */
 export const getAllBookingsApi = async (token, filters = {}) => {
@@ -216,3 +326,49 @@ export const getAllBookingsApi = async (token, filters = {}) => {
     return { ok: false, status: 500, data: { success: false, message: error.message } };
   }
 };
+
+/**
+ * =============================================================================
+ * MODULE 4: SERVICE LIFECYCLE APIS
+ * =============================================================================
+ */
+
+/**
+ * Start service on an accepted booking (Technician)
+ */
+export const startServiceApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/start`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Mark service as completed (Technician)
+ */
+export const completeServiceApi = async (bookingId, serviceNotes, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/complete`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ service_notes: serviceNotes }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
