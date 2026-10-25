@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs';
 import { pool } from '../config/db.js';
 import {
   getTechnicianServiceRequests,
@@ -5,6 +7,8 @@ import {
   getBookingRecommendations,
   PINCODE_COORDINATES,
 } from '../services/recommendationEngine.js';
+import { getToolMaterialRecommendations } from '../services/toolMaterialRecommendationEngine.js';
+import { detectComplaintDetails } from '../utils/complaintDetectionEngine.js';
 
 // Allowed urgency levels
 const VALID_URGENCY = ['low', 'medium', 'high', 'emergency'];
@@ -26,7 +30,7 @@ const generateBookingReference = () => {
 export const createBooking = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    const {
+    let {
       service_id,
       problem_title,
       problem_description,
@@ -38,19 +42,94 @@ export const createBooking = async (req, res) => {
       urgency_level = 'medium',
       latitude = null,
       longitude = null,
+      voice_transcription = null,
+      detected_service = null,
+      detected_problem = null,
+      detected_keywords = null,
+      detection_method = null,
     } = req.body;
 
     const userId = req.user.id;
+
+    // Handle problem image upload if provided
+    let problemImageUrl = null;
+    if (req.files && req.files.problem_image && req.files.problem_image.length > 0) {
+      problemImageUrl = `/uploads/complaints/${req.files.problem_image[0].filename}`;
+    } else if (req.file) {
+      problemImageUrl = `/uploads/complaints/${req.file.filename}`;
+    }
+
+    // Handle voice complaint upload if provided
+    let voiceComplaintUrl = null;
+    if (req.files && req.files.voice_recording && req.files.voice_recording.length > 0) {
+      voiceComplaintUrl = `/uploads/complaints/${req.files.voice_recording[0].filename}`;
+    } else if (req.body.voice_complaint_url) {
+      voiceComplaintUrl = req.body.voice_complaint_url;
+    }
+
+    // Deterministic rule-based complaint detection from voice transcription or problem description
+    const textToAnalyze = (voice_transcription || problem_description || problem_title || '').trim();
+    let finalDetectedService = detected_service || null;
+    let finalDetectedProblem = detected_problem || null;
+    let finalDetectedKeywords = detected_keywords
+      ? (typeof detected_keywords === 'string' ? detected_keywords : JSON.stringify(detected_keywords))
+      : null;
+    let finalDetectionMethod = detection_method || (voiceComplaintUrl || voice_transcription ? 'rule_based_speech_to_text' : null);
+
+    if (textToAnalyze && (!finalDetectedService || !finalDetectedProblem)) {
+      const autoDetect = detectComplaintDetails(textToAnalyze);
+      if (autoDetect.match_found) {
+        if (!finalDetectedService) finalDetectedService = autoDetect.detected_service;
+        if (!finalDetectedProblem) finalDetectedProblem = autoDetect.detected_problem;
+        if (!finalDetectedKeywords) finalDetectedKeywords = JSON.stringify(autoDetect.matched_keywords);
+        if (!finalDetectionMethod) finalDetectionMethod = autoDetect.detection_method;
+        if (!service_id && autoDetect.service_id) {
+          service_id = autoDetect.service_id;
+        }
+      }
+    }
+
+    // Smart default generation for title & description to support all 7 complaint combinations:
+    // (Text only, Voice only, Image only, Text+Voice, Text+Image, Image+Voice, Text+Image+Voice)
+    let finalTitle = (problem_title || '').trim();
+    let finalDescription = (problem_description || '').trim();
+
+    if (!finalTitle) {
+      if (finalDetectedProblem) {
+        finalTitle = finalDetectedProblem;
+      } else if (voice_transcription && voice_transcription.trim()) {
+        const tr = voice_transcription.trim();
+        finalTitle = tr.length > 60 ? `${tr.slice(0, 57)}...` : tr;
+      } else if (problemImageUrl) {
+        finalTitle = 'Problem Photo Inspection Request';
+      }
+    }
+
+    if (!finalDescription) {
+      if (voice_transcription && voice_transcription.trim()) {
+        finalDescription = voice_transcription.trim();
+      } else if (problemImageUrl) {
+        finalDescription = 'Customer attached problem photo for visual diagnosis and repair.';
+      } else if (finalTitle) {
+        finalDescription = finalTitle;
+      }
+    }
 
     // Basic Validations
     if (!service_id) {
       return res.status(400).json({ success: false, message: 'Please select a service category.' });
     }
-    if (!problem_title || !problem_title.trim()) {
-      return res.status(400).json({ success: false, message: 'Problem title is required.' });
+    if (!finalTitle) {
+      return res.status(400).json({
+        success: false,
+        message: 'Problem title or complaint recording/image is required.',
+      });
     }
-    if (!problem_description || !problem_description.trim()) {
-      return res.status(400).json({ success: false, message: 'Please provide a description of the issue.' });
+    if (!finalDescription) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a description, voice complaint, or photo of the issue.',
+      });
     }
     if (!service_address || !service_address.trim()) {
       return res.status(400).json({ success: false, message: 'Service address is required.' });
@@ -85,12 +164,6 @@ export const createBooking = async (req, res) => {
     const service = services[0];
     const estimatedCost = parseFloat(service.base_price) || 199.0;
 
-    // Handle problem image upload if provided
-    let problemImageUrl = null;
-    if (req.file) {
-      problemImageUrl = `/uploads/complaints/${req.file.filename}`;
-    }
-
     // Generate unique reference
     let bookingReference = generateBookingReference();
     let isUnique = false;
@@ -119,20 +192,28 @@ export const createBooking = async (req, res) => {
       }
     }
 
-    // Insert into bookings table
+    // Insert into bookings table with voice complaint metadata
     const [bookingResult] = await connection.query(
       `INSERT INTO bookings (
         booking_reference, user_id, service_id, problem_title, problem_description,
-        problem_image_url, service_address, city, pincode, latitude, longitude, scheduled_date,
+        problem_image_url, voice_complaint_url, voice_transcription,
+        detected_service, detected_problem, detected_keywords, detection_method,
+        service_address, city, pincode, latitude, longitude, scheduled_date,
         scheduled_time_slot, urgency_level, booking_status, estimated_cost
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       [
         bookingReference,
         userId,
         service_id,
-        problem_title.trim(),
-        problem_description.trim(),
+        finalTitle,
+        finalDescription,
         problemImageUrl,
+        voiceComplaintUrl,
+        voice_transcription ? voice_transcription.trim() : null,
+        finalDetectedService,
+        finalDetectedProblem,
+        finalDetectedKeywords,
+        finalDetectionMethod,
         service_address.trim(),
         city.trim(),
         pincode.trim(),
@@ -217,11 +298,20 @@ export const getMyBookings = async (req, res) => {
         u_tech.phone AS technician_phone,
         tp.average_rating AS technician_rating,
         tp.visiting_charges AS technician_visiting_charges,
-        tp.experience_years AS technician_experience_years
+        tp.experience_years AS technician_experience_years,
+        p.payment_status AS payment_status,
+        p.razorpay_order_id,
+        p.razorpay_payment_id,
+        p.paid_at AS payment_paid_at,
+        r.id AS review_id,
+        r.rating AS customer_rating,
+        r.review_comment AS customer_review
        FROM bookings b
        JOIN services s ON b.service_id = s.id
        LEFT JOIN technician_profiles tp ON b.technician_id = tp.id
        LEFT JOIN users u_tech ON tp.user_id = u_tech.id
+       LEFT JOIN payments p ON b.id = p.booking_id
+       LEFT JOIN reviews r ON b.id = r.booking_id
        WHERE b.user_id = ?
        ORDER BY b.created_at DESC`,
       [userId]
@@ -305,12 +395,21 @@ export const getBookingById = async (req, res) => {
         u_tech.name AS technician_name,
         u_tech.phone AS technician_phone,
         tp.average_rating AS technician_rating,
-        tp.service_area AS technician_area
+        tp.service_area AS technician_area,
+        p.payment_status AS payment_status,
+        p.razorpay_order_id,
+        p.razorpay_payment_id,
+        p.paid_at AS payment_paid_at,
+        r.id AS review_id,
+        r.rating AS customer_rating,
+        r.review_comment AS customer_review
        FROM bookings b
        JOIN services s ON b.service_id = s.id
        JOIN users u_cust ON b.user_id = u_cust.id
        LEFT JOIN technician_profiles tp ON b.technician_id = tp.id
        LEFT JOIN users u_tech ON tp.user_id = u_tech.id
+       LEFT JOIN payments p ON b.id = p.booking_id
+       LEFT JOIN reviews r ON b.id = r.booking_id
        WHERE b.id = ?`,
       [bookingId]
     );
@@ -657,7 +756,10 @@ export const acceptBooking = async (req, res) => {
 
     // 1. Get technician profile
     const [profiles] = await connection.query(
-      'SELECT id, service_id FROM technician_profiles WHERE user_id = ?',
+      `SELECT tp.id, tp.service_id, tp.verification_status, u.status AS user_status 
+       FROM technician_profiles tp 
+       JOIN users u ON tp.user_id = u.id 
+       WHERE tp.user_id = ?`,
       [userId]
     );
 
@@ -666,6 +768,22 @@ export const acceptBooking = async (req, res) => {
     }
 
     const techProfile = profiles[0];
+
+    // Check verification status (Strict Server-Side Enforcement)
+    if (techProfile.verification_status !== 'verified') {
+      return res.status(403).json({
+        success: false,
+        message: 'Technician account is not verified by admin.',
+      });
+    }
+
+    // Check user account status
+    if (techProfile.user_status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Technician account is suspended or inactive.',
+      });
+    }
 
     // 2. Fetch booking
     const [bookings] = await connection.query(
@@ -696,7 +814,7 @@ export const acceptBooking = async (req, res) => {
     }
 
     // If customer selected a technician, ensure this technician is that selected technician
-    if (booking.booking_status === 'customer_selected_technician' && booking.technician_id && booking.technician_id !== techProfile.id) {
+    if (booking.booking_status === 'customer_selected_technician' && booking.technician_id && Number(booking.technician_id) !== Number(techProfile.id)) {
       return res.status(403).json({
         success: false,
         message: 'This service request was directed to another technician.',
@@ -825,7 +943,7 @@ export const rejectBooking = async (req, res) => {
     }
 
     // If customer selected a specific technician, verify this technician is that assigned technician
-    if (booking.booking_status === 'customer_selected_technician' && booking.technician_id && booking.technician_id !== techProfile.id) {
+    if (booking.booking_status === 'customer_selected_technician' && booking.technician_id && Number(booking.technician_id) !== Number(techProfile.id)) {
       return res.status(403).json({
         success: false,
         message: 'Cannot decline a request directed to another technician.',
@@ -982,7 +1100,8 @@ export const selectTechnician = async (req, res) => {
     // 2. Check if technician exists in recommendations list for this booking
     const [recs] = await connection.query(
       `SELECT tr.*, tp.user_id AS tech_user_id, u.name AS tech_name, u.phone AS tech_phone,
-              tp.average_rating, tp.visiting_charges, tp.experience_years
+              tp.average_rating, tp.visiting_charges, tp.experience_years,
+              tp.verification_status, u.status AS user_status
        FROM technician_recommendations tr
        JOIN technician_profiles tp ON tr.technician_id = tp.id
        JOIN users u ON tp.user_id = u.id
@@ -998,6 +1117,22 @@ export const selectTechnician = async (req, res) => {
     }
 
     const selectedRec = recs[0];
+
+    // Verify technician verification status
+    if (selectedRec.verification_status !== 'verified') {
+      return res.status(403).json({
+        success: false,
+        message: 'Technician account is not verified by admin.',
+      });
+    }
+
+    // Verify technician user account status
+    if (selectedRec.user_status !== 'active') {
+      return res.status(403).json({
+        success: false,
+        message: 'Technician account is suspended or inactive.',
+      });
+    }
 
     // 3. Verify the technician has not previously rejected this booking
     const [priorRejections] = await connection.query(
@@ -1363,3 +1498,458 @@ export const completeService = async (req, res) => {
   }
 };
 
+/**
+ * Intelligent Rule-Based Tool & Material Recommendations (Assigned Technician Only)
+ * GET /api/bookings/:id/tool-material-suggestions
+ */
+export const getToolMaterialSuggestionsForBooking = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const userId = req.user.id;
+    const forceRefresh = req.query.refresh === 'true';
+
+    // 1. Fetch technician profile for authenticated technician
+    const [profiles] = await pool.query(
+      'SELECT id, service_id FROM technician_profiles WHERE user_id = ?',
+      [userId]
+    );
+
+    if (profiles.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technician profile not found for this account.',
+      });
+    }
+
+    const techProfile = profiles[0];
+
+    // 2. Fetch booking and category details
+    const [bookings] = await pool.query(
+      `SELECT b.id, b.booking_reference, b.booking_status, b.technician_id, b.service_id,
+              b.problem_title, b.problem_description,
+              s.name AS service_name, s.icon AS service_icon
+       FROM bookings b
+       JOIN services s ON b.service_id = s.id
+       WHERE b.id = ?`,
+      [bookingId]
+    );
+
+    if (bookings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found.',
+      });
+    }
+
+    const booking = bookings[0];
+
+    // 3. Authorization check: Only assigned technician can access recommendations
+    if (booking.technician_id !== techProfile.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to view recommendations for this booking. Only the assigned technician can access this.',
+      });
+    }
+
+    // 4. Check if recommendations were already generated and stored in tool_material_suggestions
+    const [persistedRows] = await pool.query(
+      `SELECT id, suggestion_type, suggestion_name, reason, safety_guidelines, issue_keyword, created_at
+       FROM tool_material_suggestions
+       WHERE booking_id = ?
+       ORDER BY id ASC`,
+      [bookingId]
+    );
+
+    const hasToolsOrMaterials = persistedRows.some(
+      (r) => r.suggestion_type === 'tool' || r.suggestion_type === 'material'
+    );
+
+    if (persistedRows.length > 0 && hasToolsOrMaterials && !forceRefresh) {
+      const tools = persistedRows
+        .filter((r) => r.suggestion_type === 'tool')
+        .map((r) => ({ id: r.id, name: r.suggestion_name, reason: r.reason }));
+
+      const materials = persistedRows
+        .filter((r) => r.suggestion_type === 'material')
+        .map((r) => ({ id: r.id, name: r.suggestion_name, reason: r.reason }));
+
+      const safetyGuidelines = persistedRows[0]?.safety_guidelines || null;
+      const matchedKeywords = persistedRows[0]?.issue_keyword
+        ? persistedRows[0].issue_keyword.split(',').map((k) => k.trim()).filter(Boolean)
+        : [];
+
+      return res.status(200).json({
+        success: true,
+        booking_id: booking.id,
+        booking_reference: booking.booking_reference,
+        service: {
+          id: booking.service_id,
+          name: booking.service_name,
+          icon: booking.service_icon,
+        },
+        complaint: {
+          title: booking.problem_title,
+          description: booking.problem_description,
+        },
+        matched: tools.length > 0 || materials.length > 0,
+        matched_keywords: matchedKeywords,
+        tools,
+        materials,
+        safety_guidelines: safetyGuidelines,
+        persisted: true,
+      });
+    }
+
+    // 5. Generate fresh rule-based recommendations from engine
+    const engineResult = getToolMaterialRecommendations({
+      category: booking.service_name,
+      title: booking.problem_title,
+      description: booking.problem_description,
+      serviceId: booking.service_id,
+    });
+
+    // 6. If refreshing, purge previous generated rows for this booking
+    if (forceRefresh && persistedRows.length > 0) {
+      await pool.query('DELETE FROM tool_material_suggestions WHERE booking_id = ?', [bookingId]);
+    }
+
+    // 7. Persist newly generated suggestions to MySQL for service history
+    const insertValues = [];
+    const keywordsStr = engineResult.matchedKeywords.join(', ');
+
+    for (const tool of engineResult.tools) {
+      insertValues.push([
+        booking.id,
+        userId,
+        'tool',
+        tool.name,
+        tool.reason,
+        booking.service_id,
+        keywordsStr || null,
+        engineResult.safetyGuideline || null,
+      ]);
+    }
+
+    for (const mat of engineResult.materials) {
+      insertValues.push([
+        booking.id,
+        userId,
+        'material',
+        mat.name,
+        mat.reason,
+        booking.service_id,
+        keywordsStr || null,
+        engineResult.safetyGuideline || null,
+      ]);
+    }
+
+    if (insertValues.length > 0) {
+      await pool.query(
+        `INSERT INTO tool_material_suggestions
+         (booking_id, technician_id, suggestion_type, suggestion_name, reason, service_id, issue_keyword, safety_guidelines)
+         VALUES ?`,
+        [insertValues]
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      booking_id: booking.id,
+      booking_reference: booking.booking_reference,
+      service: {
+        id: booking.service_id,
+        name: booking.service_name,
+        icon: booking.service_icon,
+      },
+      complaint: {
+        title: booking.problem_title,
+        description: booking.problem_description,
+      },
+      matched: engineResult.matched,
+      matched_keywords: engineResult.matchedKeywords,
+      tools: engineResult.tools,
+      materials: engineResult.materials,
+      safety_guidelines: engineResult.safetyGuideline,
+      persisted: true,
+      message: engineResult.message,
+    });
+  } catch (error) {
+    console.error('Error fetching tool & material suggestions:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to generate tool and material recommendations.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Submit review & rating for a completed booking
+ * POST /api/bookings/:id/review
+ */
+export const submitBookingReview = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const bookingId = req.params.id;
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+    const { rating, review_comment, comment, review } = req.body;
+    const finalComment = (review_comment || comment || review || '')?.trim() || null;
+
+    // 1. Authorization: Only customer role
+    if (currentUserRole !== 'user') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only customers can submit service reviews.',
+      });
+    }
+
+    // 2. Validate rating
+    const numRating = parseInt(rating, 10);
+    if (!numRating || numRating < 1 || numRating > 5) {
+      return res.status(400).json({
+        success: false,
+        message: 'Rating must be an integer between 1 and 5.',
+      });
+    }
+
+    // 3. Fetch booking
+    const [bookings] = await connection.query(
+      'SELECT id, user_id, technician_id, booking_status FROM bookings WHERE id = ?',
+      [bookingId]
+    );
+
+    if (bookings.length === 0) {
+      return res.status(404).json({ success: false, message: 'Booking not found.' });
+    }
+
+    const booking = bookings[0];
+
+    // 4. Ownership check: Only booking owner customer
+    if (booking.user_id !== currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to submit a review for this booking.',
+      });
+    }
+
+    // 5. Status check: Booking must be completed
+    if (booking.booking_status !== 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: `Reviews can only be submitted for completed service bookings (current status: '${booking.booking_status}').`,
+      });
+    }
+
+    // 6. Must have assigned technician
+    if (!booking.technician_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'No technician is assigned to this booking.',
+      });
+    }
+
+    // 7. Find technician profile ID (booking.technician_id may be technician_profiles.id or user_id)
+    const [techProfiles] = await connection.query(
+      'SELECT id FROM technician_profiles WHERE id = ? OR user_id = ?',
+      [booking.technician_id, booking.technician_id]
+    );
+
+    if (techProfiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technician profile could not be found.',
+      });
+    }
+
+    const techProfileId = techProfiles[0].id;
+
+    // 8. Check for duplicate review
+    const [existingReviews] = await connection.query(
+      'SELECT id FROM reviews WHERE booking_id = ?',
+      [bookingId]
+    );
+
+    if (existingReviews.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'A review has already been submitted for this booking.',
+      });
+    }
+
+    await connection.beginTransaction();
+
+    // 9. Insert review
+    const [insertResult] = await connection.query(
+      `INSERT INTO reviews (booking_id, user_id, technician_id, rating, review_comment) 
+       VALUES (?, ?, ?, ?, ?)`,
+      [bookingId, currentUserId, techProfileId, numRating, finalComment]
+    );
+
+    // 10. Recalculate technician rating & review count
+    const [[stats]] = await connection.query(
+      `SELECT COUNT(*) AS total_reviews, AVG(rating) AS avg_rating 
+       FROM reviews WHERE technician_id = ?`,
+      [techProfileId]
+    );
+
+    const newAvgRating = parseFloat(Number(stats.avg_rating || 0).toFixed(2));
+    const newTotalReviews = Number(stats.total_reviews || 0);
+
+    await connection.query(
+      `UPDATE technician_profiles 
+       SET average_rating = ?, total_reviews = ?, updated_at = NOW() 
+       WHERE id = ?`,
+      [newAvgRating, newTotalReviews, techProfileId]
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Thank you! Your review and rating have been submitted successfully.',
+      review: {
+        id: insertResult.insertId,
+        booking_id: booking.id,
+        technician_id: techProfileId,
+        rating: numRating,
+        review_comment: review_comment?.trim() || null,
+        technician_average_rating: newAvgRating,
+        technician_total_reviews: newTotalReviews,
+      },
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error submitting booking review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to submit review.',
+      error: error.message,
+    });
+  } finally {
+    connection.release();
+  }
+};
+
+/**
+ * Get review for a booking
+ * GET /api/bookings/:id/review
+ */
+export const getBookingReview = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const [reviews] = await pool.query(
+      `SELECT r.*, u.name AS customer_name 
+       FROM reviews r 
+       JOIN users u ON r.user_id = u.id 
+       WHERE r.booking_id = ?`,
+      [bookingId]
+    );
+
+    if (reviews.length === 0) {
+      return res.status(200).json({
+        success: true,
+        review: null,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      review: reviews[0],
+    });
+  } catch (error) {
+    console.error('Error fetching booking review:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve review.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Stream or download the voice complaint recording with security & access control
+ * GET /api/bookings/:id/voice-recording
+ */
+export const getVoiceRecordingStream = async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
+    const [rows] = await pool.query(
+      `SELECT id, user_id, technician_id, voice_complaint_url FROM bookings WHERE id = ?`,
+      [bookingId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Booking not found.' });
+    }
+
+    const booking = rows[0];
+
+    if (!booking.voice_complaint_url) {
+      return res.status(404).json({ success: false, message: 'No voice recording found for this booking.' });
+    }
+
+    // Role-based Access Control
+    if (currentUserRole === 'user') {
+      if (booking.user_id !== currentUserId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You can only listen to your own voice complaints.',
+        });
+      }
+    } else if (currentUserRole === 'technician') {
+      const [techs] = await pool.query(
+        'SELECT id FROM technician_profiles WHERE user_id = ?',
+        [currentUserId]
+      );
+      if (techs.length === 0 || booking.technician_id !== techs[0].id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access restricted: Only the assigned technician can listen to this voice recording.',
+        });
+      }
+    } else if (currentUserRole !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied.' });
+    }
+
+    // Path traversal defense
+    const uploadsDir = path.resolve(process.cwd(), 'uploads', 'complaints');
+    const filename = path.basename(booking.voice_complaint_url);
+    const safeFilePath = path.join(uploadsDir, filename);
+
+    // Verify resolved path stays strictly within uploads/complaints
+    if (!safeFilePath.startsWith(uploadsDir)) {
+      return res.status(403).json({ success: false, message: 'Forbidden file access attempt.' });
+    }
+
+    if (!fs.existsSync(safeFilePath)) {
+      return res.status(404).json({ success: false, message: 'Audio recording file does not exist on disk.' });
+    }
+
+    // Determine MIME type
+    const ext = path.extname(safeFilePath).toLowerCase();
+    const mimeTypes = {
+      '.webm': 'audio/webm',
+      '.ogg': 'audio/ogg',
+      '.wav': 'audio/wav',
+      '.mp3': 'audio/mpeg',
+      '.m4a': 'audio/mp4',
+      '.aac': 'audio/aac',
+    };
+    const contentType = mimeTypes[ext] || 'audio/webm';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'bytes');
+    return res.sendFile(safeFilePath);
+  } catch (error) {
+    console.error('Error streaming voice recording:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to stream voice recording.',
+      error: error.message,
+    });
+  }
+};

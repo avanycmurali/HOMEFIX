@@ -9,6 +9,9 @@ import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import BookService from './pages/BookService.jsx';
 import MyBookings from './pages/MyBookings.jsx';
+import ServiceHistory from './pages/ServiceHistory.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
 import { checkBackendHealth } from './services/api.js';
 
 export default function App() {
@@ -33,21 +36,24 @@ export default function App() {
           <Navbar />
           <main className="flex-grow-1">
             <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route
-                path="/"
+                path="/dashboard"
                 element={
-                  <Home
+                  <Dashboard
                     healthData={healthData}
                     healthLoading={healthLoading}
                     onRefreshHealth={fetchHealth}
                   />
                 }
               />
-              <Route path="/register" element={<Register />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/book-service" element={<BookService />} />
               <Route path="/my-bookings" element={<MyBookings />} />
+              <Route path="/service-history" element={<ServiceHistory />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

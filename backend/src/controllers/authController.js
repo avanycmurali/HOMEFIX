@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/db.js';
 import { signToken } from '../utils/jwt.js';
@@ -439,3 +440,222 @@ export const getMe = async (req, res) => {
     });
   }
 };
+
+/**
+ * Request password reset link (Customer, Technician, Admin)
+ * POST /api/auth/forgot-password
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || !EMAIL_REGEX.test(email.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid registered email address.',
+      });
+    }
+
+    const sanitizedEmail = email.trim().toLowerCase();
+
+    // Query user by email
+    const [rows] = await pool.query(
+      'SELECT id, name, email, status, reset_password_requested_at FROM users WHERE email = ?',
+      [sanitizedEmail]
+    );
+
+    // Standard generic message to avoid email enumeration
+    const genericSuccessMessage =
+      'If an account with that email exists, password reset instructions have been sent.';
+
+    // If user not found or not active, return generic success message immediately
+    if (rows.length === 0 || rows[0].status !== 'active') {
+      return res.status(200).json({
+        success: true,
+        message: genericSuccessMessage,
+      });
+    }
+
+    const user = rows[0];
+
+    // Rate-limiting check: Prevent multiple token requests within 60 seconds
+    if (user.reset_password_requested_at) {
+      const elapsedMs = Date.now() - new Date(user.reset_password_requested_at).getTime();
+      if (elapsedMs < 60 * 1000) {
+        return res.status(200).json({
+          success: true,
+          message: genericSuccessMessage,
+        });
+      }
+    }
+
+    // Generate 32-byte cryptographically secure random token (64 hex characters)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+
+    // Generate SHA-256 hash to store in database (never store plain-text token)
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Token expires in 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Save hashed token and expiry in database
+    await pool.query(
+      `UPDATE users 
+       SET reset_password_token = ?, 
+           reset_password_expires = ?, 
+           reset_password_requested_at = NOW() 
+       WHERE id = ?`,
+      [hashedToken, expiresAt, user.id]
+    );
+
+    const responsePayload = {
+      success: true,
+      message: genericSuccessMessage,
+    };
+
+    // In development / demo environment without an email provider, provide helper metadata
+    if (process.env.NODE_ENV !== 'production') {
+      responsePayload._dev = {
+        note: 'Development/Demo mode: No email service configured.',
+        resetToken: rawToken,
+        resetUrl: `http://localhost:5173/reset-password?token=${rawToken}`,
+        expiresInMinutes: 15,
+      };
+    }
+
+    return res.status(200).json(responsePayload);
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process password reset request. Please try again later.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Verify whether a reset token is valid and not expired
+ * GET /api/auth/verify-reset-token/:token
+ */
+export const verifyResetToken = async (req, res) => {
+  try {
+    const { token } = req.params;
+
+    if (!token || !token.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is required.',
+      });
+    }
+
+    const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    const [rows] = await pool.query(
+      `SELECT id, email FROM users 
+       WHERE reset_password_token = ? 
+         AND reset_password_expires > NOW() 
+         AND status = 'active'`,
+      [hashedToken]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset link is invalid or has expired. Please request a new one.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reset token is valid.',
+    });
+  } catch (error) {
+    console.error('Verify reset token error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify reset token.',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Reset user password with token
+ * POST /api/auth/reset-password
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+
+    if (!token || !token.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is required.',
+      });
+    }
+
+    if (!password || password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long.',
+      });
+    }
+
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match.',
+      });
+    }
+
+    // Hash the raw token to compare against database
+    const hashedToken = crypto.createHash('sha256').update(token.trim()).digest('hex');
+
+    // Find active user with matching unexpired token
+    const [rows] = await pool.query(
+      `SELECT id, email, status FROM users 
+       WHERE reset_password_token = ? 
+         AND reset_password_expires > NOW() 
+         AND status = 'active'`,
+      [hashedToken]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password reset token is invalid or has expired. Please request a new one.',
+      });
+    }
+
+    const user = rows[0];
+
+    // Hash new password using existing bcryptjs setup (10 salt rounds)
+    const saltRounds = 10;
+    const newHashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Update password and invalidate the reset token immediately
+    await pool.query(
+      `UPDATE users 
+       SET password = ?, 
+           reset_password_token = NULL, 
+           reset_password_expires = NULL, 
+           reset_password_requested_at = NULL 
+       WHERE id = ?`,
+      [newHashedPassword, user.id]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Your password has been successfully reset! You can now log in with your new password.',
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset password. Please try again.',
+      error: error.message,
+    });
+  }
+};
+

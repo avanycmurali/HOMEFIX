@@ -16,7 +16,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Check if role was passed in location state or URL params
+  // Check if role was passed in URL query
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const roleParam = params.get('role');
@@ -31,22 +31,6 @@ export default function Login() {
       navigate('/dashboard');
     }
   }, [isAuthenticated, navigate]);
-
-  // Quick fill demo credentials
-  const fillDemo = (role) => {
-    setError('');
-    setSelectedRole(role);
-    if (role === 'admin') {
-      setEmail('admin@homefix.com');
-      setPassword('Admin@123');
-    } else if (role === 'technician') {
-      setEmail('tech.electric@homefix.com');
-      setPassword('Tech@123');
-    } else {
-      setEmail('user@homefix.com');
-      setPassword('User@123');
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -69,162 +53,149 @@ export default function Login() {
     setLoading(false);
 
     if (result.success) {
-      setSuccessMsg(`Welcome back, ${result.user.name}! Redirecting...`);
-      setTimeout(() => navigate('/dashboard'), 1000);
+      setSuccessMsg(`Welcome back, ${result.user.name}! Redirecting to dashboard...`);
+      setTimeout(() => navigate('/dashboard'), 800);
     } else {
       setError(result.message);
     }
   };
 
-  // Portal Theme config based on selected tab
-  const getPortalInfo = () => {
-    switch (selectedRole) {
-      case 'admin':
-        return {
-          title: 'Administrator Portal',
-          subtitle: 'System administration, user verification, and platform oversight',
-          badgeClass: 'bg-danger text-white',
-          btnClass: 'btn-danger',
-          icon: 'bi-shield-lock-fill',
-        };
-      case 'technician':
-        return {
-          title: 'Technician Portal',
-          subtitle: 'Manage assigned complaints, update availability, and track earnings',
-          badgeClass: 'bg-warning text-dark',
-          btnClass: 'btn-warning text-dark',
-          icon: 'bi-person-gear',
-        };
-      default:
-        return {
-          title: 'Customer Login',
-          subtitle: 'Book smart home services, track complaints, and view history',
-          badgeClass: 'bg-primary text-white',
-          btnClass: 'btn-primary',
-          icon: 'bi-person-circle',
-        };
-    }
-  };
-
-  const portal = getPortalInfo();
-
   return (
-    <div className="container py-5">
-      <div className="row justify-content-center">
-        <div className="col-12 col-md-8 col-lg-5">
-          {/* Card Container */}
-          <div className="card shadow-sm border-0 rounded-4 overflow-hidden">
-            {/* Header with Portal Identity */}
-            <div className="card-body p-4 text-center bg-light border-bottom">
+    <div style={{ backgroundColor: '#FAF7F2', minHeight: '80vh' }} className="d-flex align-items-center justify-content-center py-5">
+      <div className="container">
+        <div className="row justify-content-center">
+          <div className="col-12 col-sm-10 col-md-8 col-lg-5">
+            {/* Main Form Card */}
+            <div
+              className="p-4 p-sm-5"
+              style={{
+                backgroundColor: '#FFFDF9',
+                border: '1px solid #D8C7B5',
+                borderRadius: '8px',
+                boxShadow: '0 2px 6px rgba(62, 48, 39, 0.05)',
+              }}
+            >
+              {/* Header */}
+              <div className="text-center mb-4">
+                <Link to="/" className="d-inline-flex align-items-center gap-2 text-decoration-none mb-2">
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded"
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      backgroundColor: '#5A3E2B',
+                      color: '#FFFDF9',
+                      fontSize: '1.1rem',
+                    }}
+                  >
+                    <i className="bi bi-tools"></i>
+                  </div>
+                  <span className="fw-bold fs-4" style={{ color: '#5A3E2B' }}>HOMEFIX</span>
+                </Link>
+                <h4 className="fw-bold mb-1" style={{ color: '#5A3E2B' }}>
+                  Sign In to Your Account
+                </h4>
+                <p className="small mb-0" style={{ color: '#4A382C' }}>
+                  Select your role to access your dashboard.
+                </p>
+              </div>
+
+              {/* Portal Selector Tabs */}
               <div
-                className={`d-inline-flex align-items-center justify-content-center p-3 rounded-circle mb-3 shadow-sm ${portal.badgeClass}`}
+                className="d-flex p-1 mb-4"
+                style={{
+                  backgroundColor: '#F5EFE6',
+                  borderRadius: '6px',
+                  border: '1px solid #D8C7B5',
+                }}
               >
-                <i className={`bi ${portal.icon} fs-2`}></i>
-              </div>
-              <h3 className="fw-bold mb-1">{portal.title}</h3>
-              <p className="text-muted small mb-0">{portal.subtitle}</p>
-            </div>
-
-            <div className="card-body p-4 p-md-5">
-              {/* Role Switcher Tabs */}
-              <label className="form-label small fw-bold text-uppercase text-muted tracking-wide mb-2">
-                Select Portal Role
-              </label>
-              <div className="btn-group w-100 mb-4 shadow-sm" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${selectedRole === 'user' ? 'btn-primary active fw-bold' : 'btn-outline-secondary'}`}
-                  onClick={() => {
-                    setSelectedRole('user');
-                    setError('');
-                  }}
-                >
-                  <i className="bi bi-person me-1"></i> Customer
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${selectedRole === 'technician' ? 'btn-warning active fw-bold text-dark' : 'btn-outline-secondary'}`}
-                  onClick={() => {
-                    setSelectedRole('technician');
-                    setError('');
-                  }}
-                >
-                  <i className="bi bi-tools me-1"></i> Technician
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${selectedRole === 'admin' ? 'btn-danger active fw-bold' : 'btn-outline-secondary'}`}
-                  onClick={() => {
-                    setSelectedRole('admin');
-                    setError('');
-                  }}
-                >
-                  <i className="bi bi-shield-lock me-1"></i> Admin
-                </button>
+                {[
+                  { key: 'user', label: 'Customer', icon: 'bi-person' },
+                  { key: 'technician', label: 'Technician', icon: 'bi-wrench' },
+                  { key: 'admin', label: 'Admin', icon: 'bi-shield-lock' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className="btn btn-sm flex-fill py-1.5 fw-semibold border-0"
+                    style={{
+                      backgroundColor: selectedRole === tab.key ? '#5A3E2B' : 'transparent',
+                      color: selectedRole === tab.key ? '#FFFDF9' : '#5A3E2B',
+                      fontSize: '0.85rem',
+                      borderRadius: '4px',
+                    }}
+                    onClick={() => {
+                      setSelectedRole(tab.key);
+                      setError('');
+                    }}
+                  >
+                    <i className={`bi ${tab.icon} me-1`}></i>
+                    {tab.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Error Message */}
+              {/* Error Alert */}
               {error && (
-                <div className="alert alert-danger d-flex align-items-center gap-2 alert-dismissible fade show mb-4" role="alert">
-                  <i className="bi bi-exclamation-triangle-fill flex-shrink-0 fs-5"></i>
-                  <div className="small">{error}</div>
-                  <button type="button" className="btn-close" onClick={() => setError('')}></button>
+                <div className="alert alert-danger py-2 px-3 small mb-3 d-flex align-items-center gap-2">
+                  <i className="bi bi-exclamation-circle-fill flex-shrink-0"></i>
+                  <div>{error}</div>
                 </div>
               )}
 
-              {/* Success Message */}
+              {/* Success Alert */}
               {successMsg && (
-                <div className="alert alert-success d-flex align-items-center gap-2 mb-4" role="alert">
-                  <i className="bi bi-check-circle-fill flex-shrink-0 fs-5"></i>
-                  <div className="small">{successMsg}</div>
+                <div className="alert alert-success py-2 px-3 small mb-3 d-flex align-items-center gap-2">
+                  <i className="bi bi-check-circle-fill flex-shrink-0"></i>
+                  <div>{successMsg}</div>
                 </div>
               )}
 
               {/* Login Form */}
               <form onSubmit={handleSubmit}>
                 <div className="mb-3">
-                  <label className="form-label small fw-semibold text-secondary">Registered Email Address</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-white text-muted">
-                      <i className="bi bi-envelope"></i>
-                    </span>
-                    <input
-                      type="email"
-                      className="form-control"
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (error) setError('');
-                      }}
-                      required
-                    />
-                  </div>
+                  <label className="form-label" style={{ color: '#3E3027' }}>
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    placeholder="e.g. user@homefix.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    required
+                  />
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-3">
                   <div className="d-flex justify-content-between align-items-center mb-1">
-                    <label className="form-label small fw-semibold text-secondary mb-0">Password</label>
+                    <label className="form-label mb-0" style={{ color: '#3E3027' }}>
+                      Password
+                    </label>
+                    <Link
+                      to="/forgot-password"
+                      className="small text-decoration-none"
+                      style={{ color: '#7A5C45', fontSize: '0.8rem' }}
+                    >
+                      Forgot password?
+                    </Link>
                   </div>
                   <div className="input-group">
-                    <span className="input-group-text bg-white text-muted">
-                      <i className="bi bi-lock"></i>
-                    </span>
                     <input
                       type={showPassword ? 'text' : 'password'}
                       className="form-control"
-                      placeholder="Enter your password"
+                      placeholder="Enter password"
                       value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        if (error) setError('');
-                      }}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete="current-password"
                       required
                     />
                     <button
-                      className="btn btn-outline-secondary"
                       type="button"
+                      className="btn btn-outline-secondary"
                       onClick={() => setShowPassword(!showPassword)}
+                      tabIndex="-1"
                       title={showPassword ? 'Hide password' : 'Show password'}
                     >
                       <i className={`bi ${showPassword ? 'bi-eye-slash' : 'bi-eye'}`}></i>
@@ -234,64 +205,29 @@ export default function Login() {
 
                 <button
                   type="submit"
-                  className={`btn ${portal.btnClass} btn-lg w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm`}
+                  className="btn btn-primary w-100 py-2 fw-semibold mt-2"
                   disabled={loading}
+                  style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B', color: '#FFFDF9' }}
                 >
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                      <span>Authenticating...</span>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Signing in...
                     </>
                   ) : (
-                    <>
-                      <i className="bi bi-box-arrow-in-right fs-5"></i>
-                      <span>Sign In to HOMEFIX</span>
-                    </>
+                    `Sign In as ${selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1)}`
                   )}
                 </button>
               </form>
 
-              {/* Quick Demo Testing Helper Card */}
-              <div className="mt-4 p-3 bg-light rounded-3 border">
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <span className="badge bg-secondary-subtle text-dark border">
-                    <i className="bi bi-lightning-charge-fill text-warning me-1"></i> Quick Demo Logins
-                  </span>
-                  <span className="text-muted" style={{ fontSize: '0.75rem' }}>Click to autofill</span>
-                </div>
-                <div className="d-flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary btn-sm flex-fill"
-                    onClick={() => fillDemo('user')}
-                  >
-                    User Demo
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-warning btn-sm text-dark flex-fill"
-                    onClick={() => fillDemo('technician')}
-                  >
-                    Tech Demo
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-danger btn-sm flex-fill"
-                    onClick={() => fillDemo('admin')}
-                  >
-                    Admin Demo
-                  </button>
-                </div>
-              </div>
-
-              {/* Card Footer */}
-              <div className="mt-4 pt-3 border-top text-center">
-                <p className="text-secondary small mb-0">
-                  Don't have an account yet?{' '}
-                  <Link to="/register" className="text-primary fw-semibold text-decoration-none">
-                    Register now
+              {/* Footer Links */}
+              <div className="text-center pt-3 border-top mt-4" style={{ borderColor: '#EBE0D3' }}>
+                <span className="small" style={{ color: '#4A382C' }}>
+                  Don't have an account?{' '}
+                  <Link to="/register" className="fw-semibold text-decoration-none" style={{ color: '#5A3E2B' }}>
+                    Sign Up
                   </Link>
-                </p>
+                </span>
               </div>
             </div>
           </div>

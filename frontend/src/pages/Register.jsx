@@ -78,7 +78,6 @@ export default function Register() {
     setError('');
     setSuccessMsg('');
 
-    // Frontend Validations
     if (!customerForm.name.trim()) return setError('Please enter your full name.');
     if (!customerForm.email.trim()) return setError('Please enter your email address.');
     if (customerForm.password.length < 6) return setError('Password must be at least 6 characters long.');
@@ -93,20 +92,20 @@ export default function Register() {
 
     setLoading(true);
     const result = await registerCustomer({
-      name: customerForm.name,
-      email: customerForm.email,
+      name: customerForm.name.trim(),
+      email: customerForm.email.trim(),
       password: customerForm.password,
-      phone: customerForm.phone,
-      city: customerForm.city,
-      pincode: customerForm.pincode,
-      address: customerForm.address,
+      phone: customerForm.phone.trim(),
+      city: customerForm.city.trim(),
+      pincode: customerForm.pincode.trim(),
+      address: customerForm.address.trim(),
     });
 
     setLoading(false);
 
     if (result.success) {
       setSuccessMsg('Account created successfully! Redirecting to your dashboard...');
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate('/dashboard'), 1000);
     } else {
       setError(result.message);
     }
@@ -118,7 +117,6 @@ export default function Register() {
     setError('');
     setSuccessMsg('');
 
-    // Frontend Validations
     if (!techForm.name.trim()) return setError('Please enter your full name.');
     if (!techForm.email.trim()) return setError('Please enter your email address.');
     if (techForm.password.length < 6) return setError('Password must be at least 6 characters long.');
@@ -136,67 +134,101 @@ export default function Register() {
 
     setLoading(true);
     const result = await registerTechnician({
-      name: techForm.name,
-      email: techForm.email,
+      name: techForm.name.trim(),
+      email: techForm.email.trim(),
       password: techForm.password,
-      phone: techForm.phone,
-      city: techForm.city,
-      pincode: techForm.pincode,
-      address: techForm.address,
+      phone: techForm.phone.trim(),
+      city: techForm.city.trim(),
+      pincode: techForm.pincode.trim(),
+      address: techForm.address.trim(),
       service_id: Number(techForm.service_id),
       experience_years: Number(techForm.experience_years),
-      qualification: techForm.qualification,
+      qualification: techForm.qualification.trim(),
       hourly_rate: Number(techForm.hourly_rate),
       visiting_charges: Number(techForm.visiting_charges),
-      service_area: techForm.service_area,
-      bio: techForm.bio,
+      service_area: techForm.service_area.trim(),
+      bio: techForm.bio.trim(),
     });
 
     setLoading(false);
 
     if (result.success) {
       setSuccessMsg('Technician account registered! Redirecting to your dashboard...');
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate('/dashboard'), 1000);
     } else {
       setError(result.message);
     }
   };
 
   return (
-    <div className="container py-5">
-      <div className="row justify-content-center">
-        <div className="col-12 col-md-10 col-lg-8">
-          {/* Header Card */}
-          <div className="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
-            <div className="card-body p-4 p-md-5 bg-light border-bottom text-center">
-              <div className="d-inline-flex align-items-center justify-content-center bg-primary text-white p-3 rounded-circle mb-3 shadow-sm">
-                <i className="bi bi-person-plus-fill fs-2"></i>
-              </div>
-              <h2 className="fw-bold mb-1">Create an Account</h2>
-              <p className="text-muted mb-0">Join HOMEFIX as a Customer or Verified Service Technician</p>
+    <div style={{ backgroundColor: '#FAF7F2', minHeight: '80vh' }} className="py-5">
+      <div className="container">
+        <div className="row justify-content-center">
+          <div className="col-12 col-md-10 col-lg-8">
+            {/* Header */}
+            <div className="text-center mb-4">
+              <span
+                className="badge px-3 py-1 mb-2"
+                style={{
+                  backgroundColor: '#F5EFE6',
+                  color: '#5A3E2B',
+                  border: '1px solid #D8C7B5',
+                  fontSize: '0.8rem',
+                }}
+              >
+                Create Account &bull; HOMEFIX
+              </span>
+              <h2 className="fw-bold mb-1" style={{ color: '#5A3E2B' }}>Create Your HOMEFIX Account</h2>
+              <p className="small mb-0" style={{ color: '#4A382C' }}>
+                Join as a homeowner to book verified services, or as a skilled technician to provide repairs.
+              </p>
             </div>
 
-            <div className="card-body p-4 p-md-5">
-              {/* Role Toggle Tabs */}
-              <div className="nav nav-pills nav-fill bg-white p-1 rounded-3 border mb-4 shadow-sm" role="tablist">
+            <div
+              className="p-4 p-md-5"
+              style={{
+                backgroundColor: '#FFFDF9',
+                border: '1px solid #D8C7B5',
+                borderRadius: '8px',
+                boxShadow: '0 1px 3px rgba(62, 48, 39, 0.05)',
+              }}
+            >
+              {/* Account Type Toggle */}
+              <div
+                className="d-flex p-1 mb-4"
+                style={{
+                  backgroundColor: '#F5EFE6',
+                  borderRadius: '6px',
+                  border: '1px solid #D8C7B5',
+                }}
+                role="tablist"
+              >
                 <button
                   type="button"
-                  className={`nav-link py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 ${
-                    activeTab === 'customer' ? 'active shadow-sm' : 'text-secondary'
-                  }`}
+                  className="btn flex-fill py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 border-0"
+                  style={{
+                    backgroundColor: activeTab === 'customer' ? '#5A3E2B' : 'transparent',
+                    color: activeTab === 'customer' ? '#FFFDF9' : '#5A3E2B',
+                    borderRadius: '4px',
+                    fontSize: '0.875rem',
+                  }}
                   onClick={() => {
                     setActiveTab('customer');
                     setError('');
                   }}
                 >
-                  <i className="bi bi-person-heart"></i>
+                  <i className="bi bi-person-fill"></i>
                   <span>Customer Registration</span>
                 </button>
                 <button
                   type="button"
-                  className={`nav-link py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 ${
-                    activeTab === 'technician' ? 'active shadow-sm' : 'text-secondary'
-                  }`}
+                  className="btn flex-fill py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 border-0"
+                  style={{
+                    backgroundColor: activeTab === 'technician' ? '#5A3E2B' : 'transparent',
+                    color: activeTab === 'technician' ? '#FFFDF9' : '#5A3E2B',
+                    borderRadius: '4px',
+                    fontSize: '0.875rem',
+                  }}
                   onClick={() => {
                     setActiveTab('technician');
                     setError('');
@@ -207,38 +239,43 @@ export default function Register() {
                 </button>
               </div>
 
-              {/* Error Alert */}
-              {error && (
-                <div className="alert alert-danger d-flex align-items-center gap-2 alert-dismissible fade show" role="alert">
-                  <i className="bi bi-exclamation-triangle-fill flex-shrink-0 fs-5"></i>
-                  <div>{error}</div>
-                  <button type="button" className="btn-close" onClick={() => setError('')}></button>
-                </div>
-              )}
+            {/* Error Feedback */}
+            {error && (
+              <div className="alert alert-danger d-flex align-items-center gap-2 alert-dismissible fade show small py-2 mb-4" role="alert">
+                <i className="bi bi-exclamation-circle-fill flex-shrink-0"></i>
+                <div>{error}</div>
+                <button type="button" className="btn-close" onClick={() => setError('')}></button>
+              </div>
+            )}
 
-              {/* Success Alert */}
-              {successMsg && (
-                <div className="alert alert-success d-flex align-items-center gap-2" role="alert">
-                  <i className="bi bi-check-circle-fill flex-shrink-0 fs-5"></i>
-                  <div>{successMsg}</div>
-                </div>
-              )}
+            {/* Success Feedback */}
+            {successMsg && (
+              <div className="alert alert-success d-flex align-items-center gap-2 small py-2 mb-4" role="alert">
+                <i className="bi bi-check-circle-fill flex-shrink-0"></i>
+                <div>{successMsg}</div>
+              </div>
+            )}
 
-              {/* CUSTOMER FORM */}
-              {activeTab === 'customer' && (
-                <form onSubmit={handleCustomerSubmit}>
-                  <h5 className="fw-bold text-dark mb-3 border-start border-4 border-primary ps-2">
-                    Customer Account Details
-                  </h5>
+            {/* ======================================================== */}
+            {/* CUSTOMER REGISTRATION FORM */}
+            {/* ======================================================== */}
+            {activeTab === 'customer' && (
+              <form onSubmit={handleCustomerSubmit}>
+                <div className="mb-4">
+                  <h6 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                    <span className="badge bg-primary rounded-circle" style={{ width: '22px', height: '22px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>1</span>
+                    <span>Personal Information</span>
+                  </h6>
+                  <p className="text-muted small mb-3">Your details for booking updates and technician communication.</p>
 
                   <div className="row g-3">
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Full Name *</label>
+                      <label className="form-label">Full Name <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="name"
                         className="form-control"
-                        placeholder="e.g. Rahul Sharma"
+                        placeholder="e.g. Arun Kumar"
                         value={customerForm.name}
                         onChange={handleCustomerChange}
                         required
@@ -246,12 +283,12 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Email Address *</label>
+                      <label className="form-label">Email Address <span className="text-danger">*</span></label>
                       <input
                         type="email"
                         name="email"
                         className="form-control"
-                        placeholder="e.g. rahul@example.com"
+                        placeholder="name@example.com"
                         value={customerForm.email}
                         onChange={handleCustomerChange}
                         required
@@ -259,9 +296,9 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Phone Number (10 Digits) *</label>
+                      <label className="form-label">Phone Number (10 Digits) <span className="text-danger">*</span></label>
                       <div className="input-group">
-                        <span className="input-group-text bg-light text-muted">+91</span>
+                        <span className="input-group-text">+91</span>
                         <input
                           type="tel"
                           name="phone"
@@ -275,7 +312,7 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">City *</label>
+                      <label className="form-label">City <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="city"
@@ -286,35 +323,19 @@ export default function Register() {
                         required
                       />
                     </div>
+                  </div>
+                </div>
 
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Password *</label>
-                      <input
-                        type="password"
-                        name="password"
-                        className="form-control"
-                        placeholder="Minimum 6 characters"
-                        value={customerForm.password}
-                        onChange={handleCustomerChange}
-                        required
-                      />
-                    </div>
+                <div className="mb-4 pt-3 border-top">
+                  <h6 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                    <span className="badge bg-primary rounded-circle" style={{ width: '22px', height: '22px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>2</span>
+                    <span>Location & Security</span>
+                  </h6>
+                  <p className="text-muted small mb-3">Service address and account security password.</p>
 
+                  <div className="row g-3">
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Confirm Password *</label>
-                      <input
-                        type="password"
-                        name="confirmPassword"
-                        className="form-control"
-                        placeholder="Re-type password"
-                        value={customerForm.confirmPassword}
-                        onChange={handleCustomerChange}
-                        required
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Pincode *</label>
+                      <label className="form-label">Postal Pincode <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="pincode"
@@ -327,55 +348,86 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Residential Address</label>
+                      <label className="form-label">Residential Address</label>
                       <input
                         type="text"
                         name="address"
                         className="form-control"
-                        placeholder="Flat / House No., Street, Area"
+                        placeholder="House / Flat No., Street, Area"
                         value={customerForm.address}
                         onChange={handleCustomerChange}
                       />
                     </div>
-                  </div>
 
-                  <div className="mt-4">
-                    <button
-                      type="submit"
-                      className="btn btn-primary btn-lg w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                          <span>Creating Customer Account...</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-check2-circle fs-5"></i>
-                          <span>Register as Customer</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {/* TECHNICIAN FORM */}
-              {activeTab === 'technician' && (
-                <form onSubmit={handleTechSubmit}>
-                  <h5 className="fw-bold text-dark mb-3 border-start border-4 border-warning ps-2">
-                    1. Technician Identity & Credentials
-                  </h5>
-
-                  <div className="row g-3 mb-4">
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Full Name *</label>
+                      <label className="form-label">Password <span className="text-danger">*</span></label>
+                      <input
+                        type="password"
+                        name="password"
+                        className="form-control"
+                        placeholder="Min 6 characters"
+                        value={customerForm.password}
+                        onChange={handleCustomerChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        className="form-control"
+                        placeholder="Re-type password"
+                        value={customerForm.confirmPassword}
+                        onChange={handleCustomerChange}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 py-2 mt-2"
+                  disabled={loading}
+                  style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B', color: '#FFFDF9' }}
+                >
+                  {loading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                      <span>Creating Account...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-person-check-fill fs-5"></i>
+                      <span>Sign Up &bull; Complete Customer Registration</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+
+            {/* ======================================================== */}
+            {/* TECHNICIAN REGISTRATION FORM */}
+            {/* ======================================================== */}
+            {activeTab === 'technician' && (
+              <form onSubmit={handleTechSubmit}>
+                <div className="mb-4">
+                  <h6 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                    <span className="badge bg-warning text-dark rounded-circle" style={{ width: '22px', height: '22px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>1</span>
+                    <span>Technician Credentials</span>
+                  </h6>
+                  <p className="text-muted small mb-3">Your professional identity on HOMEFIX.</p>
+
+                  <div className="row g-3">
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Full Name <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="name"
                         className="form-control"
-                        placeholder="e.g. Amit Verma"
+                        placeholder="e.g. Ramesh Varma"
                         value={techForm.name}
                         onChange={handleTechChange}
                         required
@@ -383,12 +435,12 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Email Address *</label>
+                      <label className="form-label">Email Address <span className="text-danger">*</span></label>
                       <input
                         type="email"
                         name="email"
                         className="form-control"
-                        placeholder="e.g. amit.verma@example.com"
+                        placeholder="name@example.com"
                         value={techForm.email}
                         onChange={handleTechChange}
                         required
@@ -396,9 +448,9 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Phone Number (10 Digits) *</label>
+                      <label className="form-label">Phone Number (10 Digits) <span className="text-danger">*</span></label>
                       <div className="input-group">
-                        <span className="input-group-text bg-light text-muted">+91</span>
+                        <span className="input-group-text">+91</span>
                         <input
                           type="tel"
                           name="phone"
@@ -412,7 +464,7 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">City *</label>
+                      <label className="form-label">City <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="city"
@@ -425,12 +477,12 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Password *</label>
+                      <label className="form-label">Password <span className="text-danger">*</span></label>
                       <input
                         type="password"
                         name="password"
                         className="form-control"
-                        placeholder="Minimum 6 characters"
+                        placeholder="Min 6 characters"
                         value={techForm.password}
                         onChange={handleTechChange}
                         required
@@ -438,7 +490,7 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Confirm Password *</label>
+                      <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
                       <input
                         type="password"
                         name="confirmPassword"
@@ -449,9 +501,79 @@ export default function Register() {
                         required
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div className="mb-4 pt-3 border-top">
+                  <h6 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                    <span className="badge bg-warning text-dark rounded-circle" style={{ width: '22px', height: '22px', padding: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>2</span>
+                    <span>Specialization, Rates & Coverage</span>
+                  </h6>
+                  <p className="text-muted small mb-3">Define your trade trade specialty, visiting charges, and operating radius.</p>
+
+                  <div className="row g-3">
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Primary Trade Specialization <span className="text-danger">*</span></label>
+                      <select
+                        name="service_id"
+                        className="form-select"
+                        value={techForm.service_id}
+                        onChange={handleTechChange}
+                        required
+                      >
+                        <option value="">-- Choose Trade Category --</option>
+                        {services.map((svc) => (
+                          <option key={svc.id} value={svc.id}>
+                            {svc.name} (Base Fee: ₹{svc.base_price})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Pincode *</label>
+                      <label className="form-label">Experience (Years) <span className="text-danger">*</span></label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="50"
+                        name="experience_years"
+                        className="form-control"
+                        value={techForm.experience_years}
+                        onChange={handleTechChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Visiting Fee (₹) <span className="text-danger">*</span></label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="10"
+                        name="visiting_charges"
+                        className="form-control"
+                        value={techForm.visiting_charges}
+                        onChange={handleTechChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Hourly Rate (₹) <span className="text-danger">*</span></label>
+                      <input
+                        type="number"
+                        min="50"
+                        step="10"
+                        name="hourly_rate"
+                        className="form-control"
+                        value={techForm.hourly_rate}
+                        onChange={handleTechChange}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Postal Pincode <span className="text-danger">*</span></label>
                       <input
                         type="text"
                         name="pincode"
@@ -464,56 +586,19 @@ export default function Register() {
                     </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Service Area / Neighborhood</label>
+                      <label className="form-label">Coverage Area / Neighborhood</label>
                       <input
                         type="text"
                         name="service_area"
                         className="form-control"
-                        placeholder="e.g. Koramangala / HSR Layout"
+                        placeholder="e.g. Koramangala / Indiranagar"
                         value={techForm.service_area}
                         onChange={handleTechChange}
                       />
                     </div>
-                  </div>
-
-                  <h5 className="fw-bold text-dark mb-3 border-start border-4 border-warning ps-2">
-                    2. Service Specialization & Pricing
-                  </h5>
-
-                  <div className="row g-3">
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Primary Service Category *</label>
-                      <select
-                        name="service_id"
-                        className="form-select"
-                        value={techForm.service_id}
-                        onChange={handleTechChange}
-                        required
-                      >
-                        <option value="">-- Select Service Specialization --</option>
-                        {services.map((svc) => (
-                          <option key={svc.id} value={svc.id}>
-                            {svc.name} (Base Price: ₹{svc.base_price})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
 
                     <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Experience (Years)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="50"
-                        name="experience_years"
-                        className="form-control"
-                        value={techForm.experience_years}
-                        onChange={handleTechChange}
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-6">
-                      <label className="form-label small fw-semibold text-secondary">Qualification / Certification</label>
+                      <label className="form-label">Qualification / ITI Certification</label>
                       <input
                         type="text"
                         name="qualification"
@@ -524,80 +609,66 @@ export default function Register() {
                       />
                     </div>
 
-                    <div className="col-12 col-md-3">
-                      <label className="form-label small fw-semibold text-secondary">Hourly Rate (₹)</label>
+                    <div className="col-12 col-md-6">
+                      <label className="form-label">Workshop / Base Address</label>
                       <input
-                        type="number"
-                        min="50"
-                        step="10"
-                        name="hourly_rate"
+                        type="text"
+                        name="address"
                         className="form-control"
-                        value={techForm.hourly_rate}
-                        onChange={handleTechChange}
-                      />
-                    </div>
-
-                    <div className="col-12 col-md-3">
-                      <label className="form-label small fw-semibold text-secondary">Visiting Fee (₹)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="10"
-                        name="visiting_charges"
-                        className="form-control"
-                        value={techForm.visiting_charges}
+                        placeholder="Shop / Unit address"
+                        value={techForm.address}
                         onChange={handleTechChange}
                       />
                     </div>
 
                     <div className="col-12">
-                      <label className="form-label small fw-semibold text-secondary">Bio / Specialization Details</label>
+                      <label className="form-label">Brief Bio / Skills Summary</label>
                       <textarea
                         name="bio"
                         className="form-control"
                         rows="2"
-                        placeholder="Describe your expertise, certifications, and types of home appliances or fixtures you repair..."
+                        placeholder="Mention types of appliances or systems you fix (e.g. Inverter AC, modular switches, copper piping)..."
                         value={techForm.bio}
                         onChange={handleTechChange}
                       ></textarea>
                     </div>
                   </div>
+                </div>
 
-                  <div className="mt-4">
-                    <button
-                      type="submit"
-                      className="btn btn-warning btn-lg w-100 fw-semibold text-dark d-flex align-items-center justify-content-center gap-2 shadow-sm"
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                          <span>Submitting Technician Registration...</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="bi bi-tools fs-5"></i>
-                          <span>Register as Technician</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </form>
-              )}
+                <button
+                  type="submit"
+                  className="btn btn-primary w-100 fw-semibold d-flex align-items-center justify-content-center gap-2 py-2 mt-2"
+                  disabled={loading}
+                  style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B', color: '#FFFDF9' }}
+                >
+                  {loading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm" role="status"></span>
+                      <span>Registering Technician...</span>
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-tools fs-5"></i>
+                      <span>Sign Up &bull; Complete Technician Registration</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
 
-              {/* Card Footer with link to Login */}
-              <div className="mt-4 pt-3 border-top text-center">
-                <p className="text-secondary mb-0">
-                  Already have an account?{' '}
-                  <Link to="/login" className="text-primary fw-semibold text-decoration-none">
-                    Sign in here
-                  </Link>
-                </p>
-              </div>
+            {/* Login Link */}
+            <div className="text-center pt-4 border-top mt-4">
+              <p className="small mb-0" style={{ color: '#4A382C' }}>
+                Already registered with HOMEFIX?{' '}
+                <Link to="/login" className="fw-semibold text-decoration-none" style={{ color: '#5A3E2B' }}>
+                  Sign in to your account
+                </Link>
+              </p>
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

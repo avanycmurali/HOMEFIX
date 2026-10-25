@@ -103,6 +103,53 @@ export const getMeApi = async (token) => {
 };
 
 /**
+ * Request password reset link (Forgot Password)
+ */
+export const forgotPasswordApi = async (email) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Verify validity of a password reset token
+ */
+export const verifyResetTokenApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/verify-reset-token/${encodeURIComponent(token)}`);
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Reset password using token
+ */
+export const resetPasswordApi = async (token, password, confirmPassword) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password, confirmPassword }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
  * =============================================================================
  * MODULE 2: COMPLAINT REGISTRATION & SERVICE BOOKING APIS
  * =============================================================================
@@ -371,4 +418,451 @@ export const completeServiceApi = async (bookingId, serviceNotes, token) => {
     return { ok: false, status: 500, data: { success: false, message: error.message } };
   }
 };
+
+/**
+ * Intelligent Rule-Based Tool & Material Recommendations (Assigned Technician)
+ * GET /api/bookings/:id/tool-material-suggestions
+ */
+export const getToolMaterialSuggestionsApi = async (bookingId, token, refresh = false) => {
+  try {
+    const url = `${API_BASE_URL}/bookings/${bookingId}/tool-material-suggestions${refresh ? '?refresh=true' : ''}`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * =============================================================================
+ * MODULE: RAZORPAY TEST PAYMENT APIS
+ * =============================================================================
+ */
+
+/**
+ * Create a Razorpay payment order for a completed booking
+ * POST /api/bookings/:id/payment/order
+ */
+export const createPaymentOrderApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/payment/order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Verify Razorpay payment signature
+ * POST /api/bookings/:id/payment/verify
+ */
+export const verifyPaymentApi = async (bookingId, paymentData, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/payment/verify`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(paymentData),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get payment status for a booking
+ * GET /api/bookings/:id/payment
+ */
+export const getBookingPaymentApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/payment`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+// =============================================================================
+// MODULE 5: REVIEWS AND RATINGS API
+// =============================================================================
+
+/**
+ * Submit customer review & rating for a completed booking
+ * POST /api/bookings/:id/review
+ */
+export const submitBookingReviewApi = async (bookingId, { rating, review_comment }, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/review`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ rating, review_comment }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get review for a booking
+ * GET /api/bookings/:id/review
+ */
+export const getBookingReviewApi = async (bookingId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/${bookingId}/review`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+// =============================================================================
+// MODULE 5: ADMIN MANAGEMENT API
+// =============================================================================
+
+/**
+ * Get Admin Dashboard Overview Statistics
+ * GET /api/admin/dashboard-stats
+ */
+export const getAdminDashboardStatsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard-stats`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Customers (Admin)
+ * GET /api/admin/customers
+ */
+export const getAdminCustomersApi = async (token, params = {}) => {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? `${API_BASE_URL}/admin/customers?${query}` : `${API_BASE_URL}/admin/customers`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get Customer Profile, Service History & Payments (Admin)
+ * GET /api/admin/customers/:id
+ */
+export const getAdminCustomerDetailsApi = async (customerId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/customers/${customerId}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Update Customer Account Status (Admin)
+ * PUT /api/admin/customers/:id/status
+ */
+export const updateCustomerStatusApi = async (customerId, status, token, remarks = '') => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/customers/${customerId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, remarks }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Delete Customer Account (Admin)
+ * DELETE /api/admin/customers/:id
+ */
+export const deleteCustomerApi = async (customerId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/customers/${customerId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Technicians (Admin)
+ * GET /api/admin/technicians
+ */
+export const getAdminTechniciansApi = async (token, params = {}) => {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? `${API_BASE_URL}/admin/technicians?${query}` : `${API_BASE_URL}/admin/technicians`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Approve or Reject Technician Verification (Admin)
+ * PUT /api/admin/technicians/:id/verify
+ */
+export const verifyTechnicianApi = async (technicianId, verification_status, token, remarks = '') => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/technicians/${technicianId}/verify`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ verification_status, remarks }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Update Technician Account Status (Admin)
+ * PUT /api/admin/technicians/:id/status
+ */
+export const updateTechnicianStatusApi = async (technicianId, status, token, remarks = '') => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/technicians/${technicianId}/status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ status, remarks }),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Delete Technician Account (Admin)
+ * DELETE /api/admin/technicians/:id
+ */
+export const deleteTechnicianApi = async (technicianId, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/technicians/${technicianId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Bookings with Multi-Filtering (Admin)
+ * GET /api/admin/bookings
+ */
+export const getAdminBookingsApi = async (token, filters = {}) => {
+  try {
+    const query = new URLSearchParams(filters).toString();
+    const url = query ? `${API_BASE_URL}/admin/bookings?${query}` : `${API_BASE_URL}/admin/bookings`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Payments Ledger (Admin)
+ * GET /api/admin/payments
+ */
+export const getAdminPaymentsApi = async (token, filters = {}) => {
+  try {
+    const query = new URLSearchParams(filters).toString();
+    const url = query ? `${API_BASE_URL}/admin/payments?${query}` : `${API_BASE_URL}/admin/payments`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Reviews (Admin)
+ * GET /api/admin/reviews
+ */
+export const getAdminReviewsApi = async (token, params = {}) => {
+  try {
+    const query = new URLSearchParams(params).toString();
+    const url = query ? `${API_BASE_URL}/admin/reviews?${query}` : `${API_BASE_URL}/admin/reviews`;
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get Admin Audit Logs
+ * GET /api/admin/audit-logs
+ */
+export const getAdminAuditLogsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/audit-logs`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get Technician Earnings & Payout Summary
+ * GET /api/technician/earnings
+ */
+export const getTechnicianEarningsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/technician/earnings`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Get All Technician Payouts (Admin)
+ * GET /api/admin/payouts
+ */
+export const getAdminPayoutsApi = async (token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/payouts`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Mark Technician Payout as Paid (Admin - Demo Payout)
+ * PUT /api/admin/payouts/:id/mark-paid
+ */
+export const markPayoutPaidApi = async (payoutId, token, payload = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/payouts/${payoutId}/mark-paid`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+
+
+
 

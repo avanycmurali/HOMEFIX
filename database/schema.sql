@@ -44,6 +44,9 @@ CREATE TABLE users (
     pincode VARCHAR(10) NULL,
     profile_image VARCHAR(255) NULL,
     status ENUM('active', 'inactive', 'suspended') DEFAULT 'active',
+    reset_password_token VARCHAR(255) NULL,
+    reset_password_expires DATETIME NULL,
+    reset_password_requested_at DATETIME NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_users_role (role),
@@ -188,8 +191,9 @@ CREATE TABLE payments (
     booking_id INT NOT NULL UNIQUE,
     user_id INT NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
-    payment_method ENUM('cash_on_service', 'razorpay', 'upi', 'card', 'net_banking') DEFAULT 'cash_on_service',
-    payment_status ENUM('pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
+    currency VARCHAR(10) DEFAULT 'INR',
+    payment_method ENUM('cash_on_service', 'razorpay', 'upi', 'card', 'net_banking', 'demo') DEFAULT 'demo',
+    payment_status ENUM('created', 'pending', 'paid', 'failed', 'refunded') DEFAULT 'pending',
     razorpay_order_id VARCHAR(100) NULL,
     razorpay_payment_id VARCHAR(100) NULL,
     razorpay_signature VARCHAR(255) NULL,
@@ -200,7 +204,34 @@ CREATE TABLE payments (
         REFERENCES bookings(id) ON DELETE CASCADE,
     CONSTRAINT fk_payment_user FOREIGN KEY (user_id) 
         REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_payment_status (payment_status)
+    INDEX idx_payment_status (payment_status),
+    INDEX idx_razorpay_order_id (razorpay_order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table: technician_payouts
+-- Tracks technician earnings, platform fee deduction, and settlement payout status
+CREATE TABLE technician_payouts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    technician_id INT NOT NULL,
+    payment_id INT NOT NULL UNIQUE,
+    gross_amount DECIMAL(10, 2) NOT NULL,
+    platform_fee DECIMAL(10, 2) NOT NULL,
+    technician_amount DECIMAL(10, 2) NOT NULL,
+    payout_status ENUM('pending', 'paid') DEFAULT 'pending',
+    payout_reference VARCHAR(100) NULL,
+    paid_at DATETIME NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_payout_booking FOREIGN KEY (booking_id) 
+        REFERENCES bookings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_payout_technician FOREIGN KEY (technician_id) 
+        REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_payout_payment FOREIGN KEY (payment_id) 
+        REFERENCES payments(id) ON DELETE CASCADE,
+    INDEX idx_payout_tech (technician_id),
+    INDEX idx_payout_booking (booking_id),
+    INDEX idx_payout_status (payout_status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table: service_status_logs
@@ -230,18 +261,28 @@ CREATE TABLE service_status_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Table: tool_material_suggestions
--- Rule-based system knowledge base providing recommended tools & materials to technicians
+-- Rule-based system knowledge base & persisted recommendations providing recommended tools & materials to technicians
 CREATE TABLE tool_material_suggestions (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NULL,
+    technician_id INT NULL,
+    suggestion_type ENUM('tool', 'material') NULL,
+    suggestion_name VARCHAR(255) NULL,
+    reason TEXT NULL,
     service_id INT NOT NULL,
-    issue_keyword VARCHAR(100) NOT NULL,
-    recommended_tools TEXT NOT NULL,
-    required_materials TEXT NOT NULL,
+    issue_keyword VARCHAR(100) NULL,
+    recommended_tools TEXT NULL,
+    required_materials TEXT NULL,
     safety_guidelines TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_tool_service FOREIGN KEY (service_id) 
         REFERENCES services(id) ON DELETE CASCADE,
-    INDEX idx_tool_keyword (issue_keyword)
+    CONSTRAINT fk_tool_suggestion_booking FOREIGN KEY (booking_id) 
+        REFERENCES bookings(id) ON DELETE CASCADE,
+    CONSTRAINT fk_tool_suggestion_tech FOREIGN KEY (technician_id) 
+        REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_tool_keyword (issue_keyword),
+    INDEX idx_tool_booking_id (booking_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================

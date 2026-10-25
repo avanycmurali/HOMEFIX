@@ -155,6 +155,7 @@ async function runTechnicianWorkflowTests() {
     assert(regTech2.ok && regTech2.data.token, 'Second electrician registered successfully');
     const tech2Token = regTech2.data.token;
     const tech2Profile = regTech2.data.technicianProfile;
+    await pool.query("UPDATE technician_profiles SET verification_status = 'verified' WHERE id = ?", [tech2Profile.id]);
 
     // Second technician fetches service requests - should see the declined booking
     const reqsTech2 = await api('/bookings/technician/requests', {

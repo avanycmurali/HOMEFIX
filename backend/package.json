@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node src/scripts/testAuth.js && node src/scripts/testBookings.js && node src/scripts/testTechnicianRequests.js && node src/scripts/testRecommendationsCustomer.js && node src/scripts/testCustomerTechnicianSelection.js && node src/scripts/testTechnicianServiceLifecycle.js"
+    "test": "node src/scripts/testAuth.js && node src/scripts/testBookings.js && node src/scripts/testTechnicianRequests.js && node src/scripts/testRecommendationsCustomer.js && node src/scripts/testCustomerTechnicianSelection.js && node src/scripts/testTechnicianServiceLifecycle.js && node src/scripts/testPasswordReset.js && node src/scripts/testToolMaterialRecommendations.js && node src/scripts/testRazorpayPayments.js && node src/scripts/testAdminAndHistory.js && node src/scripts/testVoiceComplaints.js && node src/scripts/testTechnicianPayouts.js && node src/scripts/testAdminDelete.js"
   },
   "keywords": [
     "homefix",
@@ -25,7 +25,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.3.0",
-    "mysql2": "^3.11.0"
+    "mysql2": "^3.11.0",
+    "razorpay": "^2.9.8"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

@@ -19,13 +19,17 @@ Final-Year Engineering Project
 
 ## ✅ Module Implementation Status
 
-| Module | Description | Backend | Frontend |
-|--------|-------------|---------|----------|
-| **Module 1** | Registration & Authentication | ✅ Done (14/14 tests) | ✅ Done |
-| **Module 2** | Complaint Registration & Service Booking | ✅ Done (16/16 tests) | ✅ Done |
-| **Module 3** | Intelligent Technician Recommendation | 🔲 Upcoming | 🔲 Upcoming |
-| **Module 4** | Payment & Service Management | 🔲 Upcoming | 🔲 Upcoming |
-| **Module 5** | Admin & Service History | 🔲 Upcoming | 🔲 Upcoming |
+| Module | Description | Backend | Frontend | Status |
+|--------|-------------|---------|----------|:------:|
+| **Module 1** | Registration & Authentication (Role-based JWT & Bcrypt) | ✅ Done (14/14 tests) | ✅ Done | **Completed** |
+| **Module 2** | Complaint Registration & Service Booking (Photos & Voice) | ✅ Done (104/104 tests) | ✅ Done | **Completed** |
+| **Module 3** | Intelligent Technician Recommendation & Selection | ✅ Done (56/56 tests) | ✅ Done | **Completed** |
+| **Module 4** | Service Progress, Tool Recommendations & Payments | ✅ Done (178/178 tests) | ✅ Done | **Completed** |
+| **Module 5** | Admin Oversight, Service History & Reviews | ✅ Done (36/36 tests) | ✅ Done | **Completed** |
+
+> ℹ️ **Payment Gateway Note**: Payments and Razorpay integration are currently configured and running in **Test/Demo mode** (`PAYMENT_MODE=demo`). This supports complete offline and test evaluation with simulated UPI, Card, Net Banking, and Cash-on-Service workflows without requiring active merchant KYC approval.
+>
+> ℹ️ **Maintenance Reminders Note**: Automated scheduled maintenance reminders (table `maintenance_reminders` present in the database schema) are **optional / not implemented** in the active application workflow and do not impact core booking, recommendation, service tracking, payments, or review functionality.
 
 ---
 
@@ -38,44 +42,75 @@ HOMEFIX/
 │   │   │   └── db.js                    # MySQL connection pool
 │   │   ├── controllers/
 │   │   │   ├── healthController.js      # Health check controller
-│   │   │   ├── authController.js        # Register, Login, GetMe
+│   │   │   ├── authController.js        # Register, Login, GetMe, Password reset
 │   │   │   ├── servicesController.js    # Service categories
-│   │   │   └── bookingController.js     # Complaints & bookings
+│   │   │   ├── bookingController.js     # Complaints, bookings, voice & reviews
+│   │   │   ├── paymentController.js     # Razorpay & Demo payments
+│   │   │   ├── payoutController.js      # Technician earnings & platform commission
+│   │   │   └── adminController.js       # Admin overview, user & technician management
+│   │   ├── services/
+│   │   │   ├── recommendationEngine.js  # Intelligent multi-criteria recommendation algorithm
+│   │   │   ├── toolMaterialRecommendationEngine.js # Tool & material diagnostic engine
+│   │   │   └── razorpayService.js       # Razorpay order & HMAC verification
+│   │   ├── utils/
+│   │   │   ├── complaintDetectionEngine.js # Multimodal keyword & STT detection engine
+│   │   │   └── jwt.js                   # JWT token creation and verification
 │   │   ├── middleware/
 │   │   │   ├── errorHandler.js          # 404 and global error handlers
 │   │   │   ├── authMiddleware.js        # JWT verifyToken + authorizeRoles
-│   │   │   └── uploadMiddleware.js      # multer for complaint photos
+│   │   │   └── uploadMiddleware.js      # multer for complaint photos & voice audio
 │   │   ├── routes/
 │   │   │   ├── healthRoutes.js          # GET /api/health
 │   │   │   ├── authRoutes.js            # POST /api/auth/*
 │   │   │   ├── serviceRoutes.js         # GET /api/services
-│   │   │   └── bookingRoutes.js         # POST/GET/PUT /api/bookings/*
+│   │   │   ├── bookingRoutes.js         # POST/GET/PUT /api/bookings/*
+│   │   │   ├── technicianRoutes.js       # GET /api/technician/*
+│   │   │   └── adminRoutes.js           # GET/PUT /api/admin/*
 │   │   ├── scripts/
 │   │   │   ├── seedPasswords.js         # Seed bcrypt hashes for demo accounts
+│   │   │   ├── migrateStatusEnums.js    # Migration for lifecycle statuses
+│   │   │   ├── migrateResetPassword.js  # Migration for password reset tokens
+│   │   │   ├── migrateRazorpayPayments.js # Migration for payment records
+│   │   │   ├── migrateTechnicianPayouts.js # Migration for technician settlement payouts
+│   │   │   ├── migrateVoiceComplaints.js # Migration for voice complaint audio
 │   │   │   ├── testAuth.js              # Module 1 automated test suite
-│   │   │   └── testBookings.js          # Module 2 automated test suite
+│   │   │   ├── testBookings.js          # Module 2 automated test suite
+│   │   │   ├── testCustomerTechnicianSelection.js # Module 3 recommendation test suite
+│   │   │   ├── testTechnicianServiceLifecycle.js # Module 4 service progress test suite
+│   │   │   ├── testRazorpayPayments.js  # Module 4 payment test suite
+│   │   │   ├── testTechnicianPayouts.js # Module 4 payout commission test suite
+│   │   │   ├── testAdminAndHistory.js   # Module 5 admin & reviews test suite
+│   │   │   └── testVoiceComplaints.js   # Multimodal voice complaint test suite
 │   │   └── server.js                    # Express server entry point
 │   ├── uploads/
-│   │   └── complaints/                  # Uploaded complaint images stored here
+│   │   └── complaints/                  # Uploaded complaint images & voice recordings
 │   ├── .env                             # Local environment variables
 │   ├── .env.example                     # Environment template
 │   └── package.json                     # Backend dependencies and scripts
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── Navbar.jsx               # Bootstrap 5 Navigation (auth-aware)
-│   │   │   └── Footer.jsx               # Project footer
+│   │   │   ├── Navbar.jsx               # Navigation (auth & role-aware)
+│   │   │   ├── Footer.jsx               # Project footer
+│   │   │   ├── TechnicianRecommendationCard.jsx # Match score card & selection
+│   │   │   ├── StatusBadge.jsx          # Color-coded lifecycle badge
+│   │   │   ├── LoadingSkeleton.jsx      # Skeleton loader placeholders
+│   │   │   └── EmptyState.jsx           # Clean empty state UI component
 │   │   ├── context/
 │   │   │   └── AuthContext.jsx          # Global auth state + login/register actions
 │   │   ├── pages/
 │   │   │   ├── Home.jsx                 # HOMEFIX Home page
 │   │   │   ├── Login.jsx                # Multi-role login (User/Tech/Admin portals)
 │   │   │   ├── Register.jsx             # Customer & Technician registration
-│   │   │   ├── Dashboard.jsx            # Role-based user dashboard
-│   │   │   ├── BookService.jsx          # Register complaint with photo & schedule
-│   │   │   └── MyBookings.jsx           # Customer complaint tracking & cancellation
+│   │   │   ├── ForgotPassword.jsx       # Password reset request
+│   │   │   ├── ResetPassword.jsx        # Token-based password update
+│   │   │   ├── Dashboard.jsx            # Role-based workspace (Customer, Tech & Admin)
+│   │   │   ├── BookService.jsx          # Register complaint with photo, voice & schedule
+│   │   │   └── MyBookings.jsx           # Tracking, tech selection, payments & reviews
 │   │   ├── services/
 │   │   │   └── api.js                   # All HTTP API functions
+│   │   ├── utils/
+│   │   │   └── complaintDetection.js    # Client-side smart complaint category detector
 │   │   ├── App.jsx                      # Main routes and providers
 │   │   ├── index.css                    # Global custom styles
 │   │   └── main.jsx                     # React DOM entry
@@ -165,3 +200,25 @@ npm run dev
 | GET | `/api/bookings` | All bookings | Admin |
 | GET | `/api/bookings/:id` | Booking details + status log | JWT |
 | PUT | `/api/bookings/:id/cancel` | Cancel a complaint | Customer/Admin |
+| GET | `/api/bookings/:id/recommendations` | Top recommended technicians with match scores | JWT |
+| PUT | `/api/bookings/:id/select-technician` | Customer selects a recommended technician | Customer |
+| GET | `/api/bookings/technician/requests` | Technician pending customer service requests | Technician |
+| PUT | `/api/bookings/:id/accept` | Accept a service booking | Technician |
+| PUT | `/api/bookings/:id/reject` | Reject booking with reason | Technician |
+| PUT | `/api/bookings/:id/start` | Start service (status -> in_progress) | Technician |
+| PUT | `/api/bookings/:id/complete` | Complete service & record notes | Technician |
+| GET | `/api/bookings/:id/tool-material-suggestions` | Tool & material suggestions for diagnosis | Technician |
+| POST | `/api/bookings/:id/payment/order` | Create payment order (Demo/Razorpay) | Customer |
+| POST | `/api/bookings/:id/payment/verify` | Verify payment & update settlement | Customer |
+| GET | `/api/bookings/:id/payment` | Get payment status & receipt | Customer/Admin |
+| GET | `/api/technician/earnings` | Technician payouts & earnings ledger | Technician |
+| POST | `/api/bookings/:id/review` | Submit 1–5 star rating & feedback | Customer |
+| GET | `/api/bookings/:id/review` | Get review details for booking | JWT |
+| GET | `/api/admin/dashboard-stats` | System KPI statistics & platform totals | Admin |
+| GET | `/api/admin/customers` | Customer list & account status | Admin |
+| GET | `/api/admin/technicians` | Technician list & verification queue | Admin |
+| PUT | `/api/admin/technicians/:id/verify` | Approve or reject technician profile | Admin |
+| GET | `/api/admin/payouts` | Payout settlement records & platform fees | Admin |
+| PUT | `/api/admin/payouts/:id/mark-paid` | Settle technician payout | Admin |
+| GET | `/api/admin/reviews` | Global reviews & ratings ledger | Admin |
+| GET | `/api/admin/audit-logs` | Administrative operation audit logs | Admin |

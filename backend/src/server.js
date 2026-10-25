@@ -6,6 +6,8 @@ import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import serviceRoutes from './routes/serviceRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
+import technicianRoutes from './routes/technicianRoutes.js';
 import { notFoundHandler, globalErrorHandler } from './middleware/errorHandler.js';
 import { checkDbConnection } from './config/db.js';
 
@@ -34,6 +36,8 @@ app.get('/', (req, res) => {
       auth: '/api/auth',
       services: '/api/services',
       bookings: '/api/bookings',
+      admin: '/api/admin',
+      technician: '/api/technician',
     },
   });
 });
@@ -43,6 +47,8 @@ app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/technician', technicianRoutes);
 
 // Fallback error handlers
 app.use(notFoundHandler);

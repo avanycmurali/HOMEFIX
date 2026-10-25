@@ -78,8 +78,8 @@ async function runCustomerTechnicianSelectionTests() {
     const tech1Profile = regTech1.data.technicianProfile;
     const tech1User = regTech1.data.user;
 
-    // Set rating in DB for realistic match
-    await pool.query('UPDATE technician_profiles SET average_rating = 4.8, total_reviews = 15 WHERE id = ?', [tech1Profile.id]);
+    // Set verification and rating in DB for realistic match
+    await pool.query("UPDATE technician_profiles SET verification_status = 'verified', average_rating = 4.8, total_reviews = 15 WHERE id = ?", [tech1Profile.id]);
 
     // Technician 2 (Suresh / Tech 2)
     const tech2Email = `sel_carpenter2_${timestamp}@homefix.com`;
@@ -104,8 +104,8 @@ async function runCustomerTechnicianSelectionTests() {
     const tech2Profile = regTech2.data.technicianProfile;
     const tech2User = regTech2.data.user;
 
-    // Set rating in DB for realistic match
-    await pool.query('UPDATE technician_profiles SET average_rating = 4.9, total_reviews = 22 WHERE id = ?', [tech2Profile.id]);
+    // Set verification and rating in DB for realistic match
+    await pool.query("UPDATE technician_profiles SET verification_status = 'verified', average_rating = 4.9, total_reviews = 22 WHERE id = ?", [tech2Profile.id]);
 
     // 3. Customer Creates a Booking
     console.log('\n--- 3. Customer Creates Service Complaint Booking ---');

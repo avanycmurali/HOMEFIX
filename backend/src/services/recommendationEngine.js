@@ -108,6 +108,19 @@ export const calculateTechnicianMatchScore = (technician, booking, hasScheduleCo
 
   // 2. Location & Service Coverage Area (Max 30 pts) with Haversine distance
   let locationScore = 0;
+  const normalizeCity = (c) => {
+    const s = (c || '').trim().toLowerCase();
+    if (s.includes('bangalore') || s.includes('bengaluru')) return 'bangalore';
+    if (s.includes('chennai') || s.includes('madras')) return 'chennai';
+    if (s.includes('mumbai') || s.includes('bombay')) return 'mumbai';
+    if (s.includes('delhi')) return 'delhi';
+    if (s.includes('hyderabad')) return 'hyderabad';
+    if (s.includes('kolkata') || s.includes('calcutta')) return 'kolkata';
+    return s;
+  };
+
+  const bookingCityNorm = normalizeCity(booking.city);
+  const techCityNorm = normalizeCity(technician.city);
   const bookingCity = (booking.city || '').trim().toLowerCase();
   const techCity = (technician.city || '').trim().toLowerCase();
   const bookingPincode = (booking.pincode || '').trim();
@@ -115,11 +128,12 @@ export const calculateTechnicianMatchScore = (technician, booking, hasScheduleCo
   const techArea = (technician.service_area || '').toLowerCase();
   const bookingAddress = (booking.service_address || '').toLowerCase();
 
-  const isSameCity = bookingCity === techCity;
+  const isSameCity = Boolean(bookingCityNorm && techCityNorm && bookingCityNorm === techCityNorm);
   const isSamePincode = Boolean(bookingPincode && techPincode && bookingPincode === techPincode);
   const isAreaMatch = Boolean(
     techArea && (
-      techArea.includes(bookingCity) ||
+      (bookingCity && techArea.includes(bookingCity)) ||
+      (bookingCityNorm && techArea.includes(bookingCityNorm)) ||
       (bookingAddress && techArea.split(/[\s,/]+/).some((word) => word.length > 3 && bookingAddress.includes(word)))
     )
   );
@@ -155,8 +169,8 @@ export const calculateTechnicianMatchScore = (technician, booking, hasScheduleCo
   } else if (isSameCity) {
     locationScore = 20;
   } else {
-    // Cross-city penalty
-    locationScore = 0;
+    // Distant / cross-city baseline fallback so qualified technicians are eligible
+    locationScore = 5;
   }
 
   // 3. Availability (Max 20 pts)
@@ -281,10 +295,12 @@ export const rankTechniciansForBooking = async (bookingId) => {
      JOIN services s ON tp.service_id = s.id
      WHERE tp.service_id = ?
        AND u.status = 'active'
+       AND tp.verification_status = 'verified'
+       AND tp.availability_status = 'available'
        AND tp.user_id NOT IN (
          SELECT changed_by_user_id 
          FROM service_status_logs 
-         WHERE booking_id = ? AND status = 'rejected'
+         WHERE booking_id = ? AND status IN ('rejected', 'technician_rejected')
        )`,
     [booking.service_id, bookingId]
   );
@@ -305,6 +321,8 @@ export const rankTechniciansForBooking = async (bookingId) => {
     // Only include technicians with non-zero location score (or acceptable match)
     if (matchScore > 0 && breakdown.location_score > 0) {
       ranked.push({
+        id: tech.id,
+        technician_id: tech.id,
         technicianId: tech.id,
         userId: tech.user_id,
         technicianName: tech.technician_name,
@@ -369,7 +387,7 @@ export const rankTechniciansForBooking = async (bookingId) => {
  * Returns ranked technicians with full profile and score breakdowns.
  */
 export const getBookingRecommendations = async (bookingId) => {
-  // Check if recommendations already exist
+  // Check if recommendations already exist and are active and verified
   const [existing] = await pool.query(
     `SELECT tr.*, 
             tp.user_id, tp.qualification, tp.experience_years, tp.hourly_rate, 
@@ -382,6 +400,8 @@ export const getBookingRecommendations = async (bookingId) => {
      JOIN users u ON tp.user_id = u.id
      JOIN services s ON tp.service_id = s.id
      WHERE tr.booking_id = ?
+       AND u.status = 'active'
+       AND tp.verification_status = 'verified'
      ORDER BY tr.rank_position ASC`,
     [bookingId]
   );
@@ -402,6 +422,8 @@ export const getBookingRecommendations = async (bookingId) => {
         : (row.score_breakdown || {});
 
       return {
+        id: row.technician_id,
+        technician_id: row.technician_id,
         technicianId: row.technician_id,
         userId: row.user_id,
         technicianName: row.technician_name,

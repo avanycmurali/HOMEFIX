@@ -14,9 +14,19 @@ import {
   selectTechnician,
   startService,
   completeService,
+  getToolMaterialSuggestionsForBooking,
+  submitBookingReview,
+  getBookingReview,
+  getVoiceRecordingStream,
 } from '../controllers/bookingController.js';
+import {
+  createPaymentOrder,
+  verifyPayment,
+  getBookingPayment,
+} from '../controllers/paymentController.js';
+import { getTechnicianEarnings } from '../controllers/payoutController.js';
 import { verifyToken, authorizeRoles } from '../middleware/authMiddleware.js';
-import { uploadComplaintImage } from '../middleware/uploadMiddleware.js';
+import { uploadComplaintMedia } from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -25,13 +35,19 @@ router.post(
   '/',
   verifyToken,
   authorizeRoles('user'),
-  uploadComplaintImage,
+  uploadComplaintMedia,
   createBooking
 );
 
 // Customer's personal bookings
 router.get(
   '/my-bookings',
+  verifyToken,
+  authorizeRoles('user'),
+  getMyBookings
+);
+router.get(
+  '/my',
   verifyToken,
   authorizeRoles('user'),
   getMyBookings
@@ -59,6 +75,14 @@ router.get(
   verifyToken,
   authorizeRoles('technician'),
   getTechnicianBookings
+);
+
+// Technician earnings alias
+router.get(
+  '/technician/earnings',
+  verifyToken,
+  authorizeRoles('technician'),
+  getTechnicianEarnings
 );
 
 // Admin oversight of all bookings
@@ -146,6 +170,63 @@ router.put(
   '/:id/cancel',
   verifyToken,
   cancelBooking
+);
+
+// Intelligent rule-based tool & material suggestions (Assigned Technician only)
+router.get(
+  '/:id/tool-material-suggestions',
+  verifyToken,
+  authorizeRoles('technician'),
+  getToolMaterialSuggestionsForBooking
+);
+
+// =============================================================================
+// MODULE: RAZORPAY TEST PAYMENT
+// =============================================================================
+
+// Create Razorpay payment order for completed booking (Customer only)
+router.post(
+  '/:id/payment/order',
+  verifyToken,
+  authorizeRoles('user'),
+  createPaymentOrder
+);
+
+// Verify Razorpay payment signature (Customer only)
+router.post(
+  '/:id/payment/verify',
+  verifyToken,
+  authorizeRoles('user'),
+  verifyPayment
+);
+
+// Get payment status for a booking (Customer or Admin)
+router.get(
+  '/:id/payment',
+  verifyToken,
+  getBookingPayment
+);
+
+// Submit review & rating for completed booking (Customer only)
+router.post(
+  '/:id/review',
+  verifyToken,
+  authorizeRoles('user'),
+  submitBookingReview
+);
+
+// Get review for a booking
+router.get(
+  '/:id/review',
+  verifyToken,
+  getBookingReview
+);
+
+// Stream or download voice complaint recording (Security & Role checks enforced)
+router.get(
+  '/:id/voice-recording',
+  verifyToken,
+  getVoiceRecordingStream
 );
 
 export default router;

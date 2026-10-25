@@ -1,10 +1,12 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 
 export default function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+  const [navCollapsed, setNavCollapsed] = useState(true);
 
   const handleLogout = () => {
     logout();
@@ -14,103 +16,294 @@ export default function Navbar() {
   const getRoleBadge = (role) => {
     switch (role) {
       case 'admin':
-        return <span className="badge bg-danger rounded-pill"><i className="bi bi-shield-lock-fill me-1"></i> Admin</span>;
+        return (
+          <span
+            className="badge px-2 py-0.5"
+            style={{ backgroundColor: '#9A4F43', color: '#FFFDF9', fontSize: '0.725rem' }}
+          >
+            Admin
+          </span>
+        );
       case 'technician':
-        return <span className="badge bg-warning text-dark rounded-pill"><i className="bi bi-tools me-1"></i> Technician</span>;
+        return (
+          <span
+            className="badge px-2 py-0.5"
+            style={{ backgroundColor: '#A9793F', color: '#FFFDF9', fontSize: '0.725rem' }}
+          >
+            Technician
+          </span>
+        );
       default:
-        return <span className="badge bg-primary rounded-pill"><i className="bi bi-person me-1"></i> Customer</span>;
+        return null;
     }
   };
 
+  const isActive = (path) => location.pathname === path;
+  const closeNav = () => setNavCollapsed(true);
+
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm py-3">
+    <nav className="navbar navbar-expand-lg hf-navbar sticky-top py-2">
       <div className="container">
-        <Link className="navbar-brand fw-bold d-flex align-items-center gap-2" to="/">
-          <span className="badge bg-primary fs-5 p-2 rounded-3">
+        {/* Brand Logo */}
+        <Link
+          className="hf-brand"
+          to={isAuthenticated ? '/dashboard' : '/'}
+          onClick={closeNav}
+        >
+          <div className="hf-brand-icon">
             <i className="bi bi-tools"></i>
-          </span>
-          <span className="fs-4 tracking-tight">HOMEFIX</span>
+          </div>
+          <div className="d-flex flex-column">
+            <span className="fw-bold fs-5 tracking-tight lh-1" style={{ color: '#FFFDF9' }}>HOMEFIX</span>
+            <span style={{ color: '#E8D8C7', fontSize: '0.65rem', letterSpacing: '0.06em' }}>
+              Home Services
+            </span>
+          </div>
         </Link>
 
+        {/* Mobile Hamburger Toggle */}
         <button
-          className="navbar-toggler border-0"
+          className="navbar-toggler border-0 p-2 shadow-none"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarContent"
-          aria-controls="navbarContent"
-          aria-expanded="false"
+          onClick={() => setNavCollapsed(!navCollapsed)}
+          aria-controls="navbarHomefix"
+          aria-expanded={!navCollapsed}
           aria-label="Toggle navigation"
         >
-          <span className="navbar-toggler-icon"></span>
+          <i className={`bi ${navCollapsed ? 'bi-list' : 'bi-x-lg'} fs-3 text-white`}></i>
         </button>
 
-        <div className="collapse navbar-collapse" id="navbarContent">
-          <ul className="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4">
-            <li className="nav-item">
-              <Link className="nav-link" to="/">Home</Link>
-            </li>
-            {isAuthenticated && user?.role === 'user' && (
+        {/* Navigation Links & Actions */}
+        <div className={`collapse navbar-collapse ${!navCollapsed ? 'show' : ''}`} id="navbarHomefix">
+          <ul className="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-lg-1">
+            {/* PUBLIC NAVIGATION (Guests) */}
+            {!isAuthenticated && (
               <>
                 <li className="nav-item">
-                  <Link className="nav-link text-warning fw-semibold" to="/book-service">
-                    <i className="bi bi-plus-circle me-1"></i> Book Service
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/') ? 'active' : ''}`}
+                    to="/"
+                    onClick={closeNav}
+                  >
+                    Home
                   </Link>
                 </li>
                 <li className="nav-item">
-                  <Link className="nav-link" to="/my-bookings">
-                    <i className="bi bi-card-checklist me-1"></i> My Complaints
+                  <a className="nav-link hf-nav-link" href="/#services" onClick={closeNav}>
+                    Services
+                  </a>
+                </li>
+                <li className="nav-item">
+                  <a className="nav-link hf-nav-link" href="/#about" onClick={closeNav}>
+                    About
+                  </a>
+                </li>
+              </>
+            )}
+
+            {/* CUSTOMER NAVIGATION */}
+            {isAuthenticated && user?.role === 'user' && (
+              <>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/dashboard') ? 'active' : ''}`}
+                    to="/dashboard"
+                    onClick={closeNav}
+                  >
+                    Home
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/book-service') ? 'active' : ''}`}
+                    to="/book-service"
+                    onClick={closeNav}
+                  >
+                    Book Service
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/my-bookings') ? 'active' : ''}`}
+                    to="/my-bookings"
+                    onClick={closeNav}
+                  >
+                    My Bookings
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/service-history') ? 'active' : ''}`}
+                    to="/service-history"
+                    onClick={closeNav}
+                  >
+                    Service History
                   </Link>
                 </li>
               </>
             )}
-            <li className="nav-item">
-              <a className="nav-link" href="/#features">Features</a>
-            </li>
-            <li className="nav-item">
-              <a className="nav-link" href="/#modules">Modules</a>
-            </li>
+
+            {/* TECHNICIAN NAVIGATION */}
+            {isAuthenticated && user?.role === 'technician' && (
+              <>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/dashboard') ? 'active' : ''}`}
+                    to="/dashboard"
+                    onClick={closeNav}
+                  >
+                    Home
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=requests"
+                    onClick={closeNav}
+                  >
+                    <i className="bi bi-inbox me-1 opacity-75"></i> Requests
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=assigned"
+                    onClick={closeNav}
+                  >
+                    <i className="bi bi-briefcase me-1 opacity-75"></i> Active Jobs
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=profile"
+                    onClick={closeNav}
+                  >
+                    <i className="bi bi-person-badge me-1 opacity-75"></i> Profile
+                  </Link>
+                </li>
+              </>
+            )}
+
+            {/* ADMIN NAVIGATION */}
+            {isAuthenticated && user?.role === 'admin' && (
+              <>
+                <li className="nav-item">
+                  <Link
+                    className={`nav-link hf-nav-link ${isActive('/dashboard') ? 'active' : ''}`}
+                    to="/dashboard"
+                    onClick={closeNav}
+                  >
+                    <i className="bi bi-speedometer2 me-1 opacity-75"></i> Overview
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=customers"
+                    onClick={closeNav}
+                  >
+                    Users
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=technicians"
+                    onClick={closeNav}
+                  >
+                    Technicians
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=bookings"
+                    onClick={closeNav}
+                  >
+                    Bookings
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link
+                    className="nav-link hf-nav-link"
+                    to="/dashboard?tab=payments"
+                    onClick={closeNav}
+                  >
+                    Payments
+                  </Link>
+                </li>
+              </>
+            )}
           </ul>
 
-          <div className="d-flex align-items-center flex-wrap gap-2">
+          {/* Right Action / Auth Controls */}
+          <div className="d-flex align-items-center flex-wrap gap-2 pt-2 pt-lg-0 border-top border-lg-0 border-secondary">
             {isAuthenticated && user ? (
               <>
-                <Link to="/dashboard" className="btn btn-outline-light btn-sm px-3 d-flex align-items-center gap-2">
+                <Link
+                  to="/dashboard"
+                  className="d-flex align-items-center gap-2 text-decoration-none px-2 py-1 rounded"
+                  onClick={closeNav}
+                >
+                  <div
+                    className="d-flex align-items-center justify-content-center rounded-circle fw-bold"
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      fontSize: '0.85rem',
+                      backgroundColor: '#7A5C45',
+                      color: '#FFFDF9',
+                    }}
+                  >
+                    {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <span className="fw-medium small d-none d-sm-inline" style={{ color: '#FFFDF9' }}>
+                    {user.role === 'admin' && (user.name === 'System Administrator' || user.name === 'System Administration') ? 'Admin' : user.name}
+                  </span>
                   {getRoleBadge(user.role)}
-                  <span className="fw-semibold">{user.name}</span>
-                </Link>
-                <Link to="/dashboard" className="btn btn-primary btn-sm px-3">
-                  <i className="bi bi-speedometer2 me-1"></i> Dashboard
                 </Link>
                 <button
-                  onClick={handleLogout}
-                  className="btn btn-outline-danger btn-sm px-3"
+                  onClick={() => {
+                    closeNav();
+                    handleLogout();
+                  }}
+                  className="btn btn-sm px-3"
+                  style={{
+                    backgroundColor: 'transparent',
+                    borderColor: '#7A5C45',
+                    color: '#E8D8C7',
+                  }}
                   type="button"
-                  title="Log out"
                 >
-                  <i className="bi bi-box-arrow-right me-1"></i> Logout
+                  <i className="bi bi-box-arrow-right me-1"></i> Sign Out
                 </button>
               </>
             ) : (
               <>
                 <Link
-                  to="/login?role=technician"
-                  className="btn btn-outline-light btn-sm px-2 px-md-3"
-                  title="Technician Portal"
+                  to="/register"
+                  className="btn btn-sm px-3 fw-semibold"
+                  style={{
+                    backgroundColor: '#7A5C45',
+                    borderColor: '#8E6E55',
+                    color: '#FFFDF9',
+                  }}
+                  onClick={closeNav}
                 >
-                  <i className="bi bi-person-gear me-1"></i> Technician
+                  Sign Up
                 </Link>
                 <Link
-                  to="/login?role=admin"
-                  className="btn btn-outline-warning btn-sm px-2 px-md-3"
-                  title="Admin Portal"
+                  to="/login"
+                  className="btn btn-sm px-3 fw-semibold"
+                  style={{
+                    backgroundColor: '#F5EFE6',
+                    borderColor: '#D8C7B5',
+                    color: '#2B1E16',
+                  }}
+                  onClick={closeNav}
                 >
-                  <i className="bi bi-shield-lock me-1"></i> Admin
-                </Link>
-                <Link to="/login" className="btn btn-primary btn-sm px-3">
-                  <i className="bi bi-box-arrow-in-right me-1"></i> Sign In
-                </Link>
-                <Link to="/register" className="btn btn-outline-info btn-sm px-3 text-white">
-                  <i className="bi bi-person-plus me-1"></i> Register
+                  Sign In
                 </Link>
               </>
             )}

@@ -134,6 +134,30 @@ async function runTechnicianServiceLifecycleTests() {
     assert(createRes.ok && createRes.data.booking, 'Service complaint created successfully');
     const bookingId = createRes.data.booking.id;
 
+    // 3a. Unverified Technician Attempts to Accept (Strict Server-Side Enforcement)
+    console.log('\n--- 3a. Unverified Technician Attempts to Accept Pending Booking ---');
+    const unverifiedAcceptRes = await api(`/bookings/${bookingId}/accept`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${tech1Token}` },
+    });
+    assert(
+      unverifiedAcceptRes.status === 403,
+      `HTTP 403 when unverified technician attempts to accept (got: ${unverifiedAcceptRes.status})`
+    );
+    assert(
+      unverifiedAcceptRes.data?.message === 'Technician account is not verified by admin.',
+      `Correct 403 error message received: "${unverifiedAcceptRes.data?.message}"`
+    );
+
+    // Verify technicians via Admin/DB so they are eligible for recommendations and acceptance
+    await pool.query("UPDATE technician_profiles SET verification_status = 'verified' WHERE id IN (?, ?)", [tech1Profile.id, tech2Profile.id]);
+
+    // Clear old pre-verification recommendation cache and re-rank
+    await pool.query('DELETE FROM technician_recommendations WHERE booking_id = ?', [bookingId]);
+    await api(`/bookings/${bookingId}/recommendations`, {
+      headers: { Authorization: `Bearer ${customerToken}` },
+    });
+
     // Customer selects Technician 1
     const selectRes = await api(`/bookings/${bookingId}/select-technician`, {
       method: 'PUT',
@@ -163,13 +187,13 @@ async function runTechnicianServiceLifecycleTests() {
       `HTTP 400 when attempting to complete unaccepted booking (got: ${completeBeforeAccept.status})`
     );
 
-    // 5. Technician 1 Accepts Booking
-    console.log('\n--- 5. Technician 1 Accepts Booking ---');
+    // 5. Verified Technician 1 Accepts Booking
+    console.log('\n--- 5. Verified Technician 1 Accepts Booking ---');
     const acceptRes = await api(`/bookings/${bookingId}/accept`, {
       method: 'PUT',
       headers: { Authorization: `Bearer ${tech1Token}` },
     });
-    assert(acceptRes.ok, 'Technician 1 accepted booking successfully');
+    assert(acceptRes.ok, 'Verified Technician 1 accepted booking successfully');
 
     const [acceptedRows] = await pool.query('SELECT booking_status FROM bookings WHERE id = ?', [bookingId]);
     assert(acceptedRows[0]?.booking_status === 'accepted', 'Booking status is "accepted" in MySQL');
