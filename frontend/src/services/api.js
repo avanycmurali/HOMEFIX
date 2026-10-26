@@ -862,6 +862,87 @@ export const markPayoutPaidApi = async (payoutId, token, payload = {}) => {
   }
 };
 
+/**
+ * Admin: Generate Technician Work Report for Selected Date
+ * GET /api/admin/reports/technician-work?date=YYYY-MM-DD
+ */
+export const getAdminTechnicianWorkReportApi = async (date, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/reports/technician-work?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Admin: Generate Customer / User Activity Report for Selected Date
+ * GET /api/admin/reports/customer-activity?date=YYYY-MM-DD
+ */
+export const getAdminCustomerActivityReportApi = async (date, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/admin/reports/customer-activity?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Technician: Generate Own Work Report for Selected Date
+ * GET /api/technician/reports/work?date=YYYY-MM-DD
+ */
+export const getTechnicianWorkReportApi = async (date, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/technician/reports/work?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+/**
+ * Customer / User: Generate Own Complaints & Bookings Report for Selected Date
+ * GET /api/bookings/reports/customer?date=YYYY-MM-DD
+ */
+export const getCustomerComplaintsReportApi = async (date, token) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/bookings/reports/customer?date=${encodeURIComponent(date)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    const data = await response.json();
+    return { ok: response.ok, status: response.status, data };
+  } catch (error) {
+    return { ok: false, status: 500, data: { success: false, message: error.message } };
+  }
+};
+
+
 
 
 

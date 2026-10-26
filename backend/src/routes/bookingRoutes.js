@@ -25,6 +25,7 @@ import {
   getBookingPayment,
 } from '../controllers/paymentController.js';
 import { getTechnicianEarnings } from '../controllers/payoutController.js';
+import { getCustomerComplaintsReport } from '../controllers/reportController.js';
 import { verifyToken, authorizeRoles } from '../middleware/authMiddleware.js';
 import { uploadComplaintMedia } from '../middleware/uploadMiddleware.js';
 
@@ -51,6 +52,20 @@ router.get(
   verifyToken,
   authorizeRoles('user'),
   getMyBookings
+);
+
+// Customer's personal complaints report
+router.get(
+  '/reports/customer',
+  verifyToken,
+  authorizeRoles('user'),
+  getCustomerComplaintsReport
+);
+router.get(
+  '/reports',
+  verifyToken,
+  authorizeRoles('user'),
+  getCustomerComplaintsReport
 );
 
 // Technician recommended service requests (pending)

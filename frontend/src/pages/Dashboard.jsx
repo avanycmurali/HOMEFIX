@@ -27,6 +27,10 @@ import {
   getTechnicianEarningsApi,
   getAdminPayoutsApi,
   markPayoutPaidApi,
+  getAdminTechnicianWorkReportApi,
+  getAdminCustomerActivityReportApi,
+  getTechnicianWorkReportApi,
+  getCustomerComplaintsReportApi,
 } from '../services/api.js';
 import StatusBadge, { UrgencyBadge } from '../components/StatusBadge.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -153,9 +157,11 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
     const params = new URLSearchParams(location.search);
     const tabParam = params.get('tab');
     if (tabParam) {
-      if (user?.role === 'technician' && ['requests', 'assigned', 'earnings', 'profile'].includes(tabParam)) {
+      if (user?.role === 'user' && ['overview', 'reports'].includes(tabParam)) {
+        setCustomerTab(tabParam);
+      } else if (user?.role === 'technician' && ['requests', 'assigned', 'earnings', 'reports', 'profile'].includes(tabParam)) {
         setTechTab(tabParam);
-      } else if (user?.role === 'admin' && ['overview', 'customers', 'technicians', 'bookings', 'payments', 'payouts', 'reviews'].includes(tabParam)) {
+      } else if (user?.role === 'admin' && ['overview', 'customers', 'technicians', 'bookings', 'payments', 'payouts', 'reviews', 'reports'].includes(tabParam)) {
         setAdminTab(tabParam);
       }
     }
@@ -164,8 +170,13 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
   // =========================================================================
   // CUSTOMER STATE & DATA
   // =========================================================================
+  const [customerTab, setCustomerTab] = useState('overview'); // 'overview' | 'reports'
   const [customerBookings, setCustomerBookings] = useState([]);
   const [loadingCustomerData, setLoadingCustomerData] = useState(false);
+  const [customerReportDate, setCustomerReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [customerReport, setCustomerReport] = useState(null);
+  const [loadingCustomerReport, setLoadingCustomerReport] = useState(false);
+  const [customerReportError, setCustomerReportError] = useState(null);
 
   const fetchCustomerDashboardData = async () => {
     if (!token || user?.role !== 'user') return;
@@ -177,11 +188,37 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
     setLoadingCustomerData(false);
   };
 
+  const fetchCustomerReport = async (dateOverride) => {
+    if (!token || user?.role !== 'user') return;
+    const targetDate = dateOverride || customerReportDate;
+    if (!targetDate) return;
+    setLoadingCustomerReport(true);
+    setCustomerReportError(null);
+    try {
+      const res = await getCustomerComplaintsReportApi(targetDate, token);
+      if (res.ok && res.data?.success) {
+        setCustomerReport(res.data.data);
+      } else {
+        setCustomerReportError(res.data?.message || 'Failed to load customer complaints report.');
+      }
+    } catch (err) {
+      setCustomerReportError(err.message || 'Error fetching report.');
+    } finally {
+      setLoadingCustomerReport(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === 'user') {
       fetchCustomerDashboardData();
     }
   }, [user, token]);
+
+  useEffect(() => {
+    if (user?.role === 'user' && customerTab === 'reports' && !customerReport) {
+      fetchCustomerReport();
+    }
+  }, [user, token, customerTab]);
 
   // =========================================================================
   // TECHNICIAN STATE & DATA
@@ -288,6 +325,31 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
     }
   };
 
+  const [techReportDate, setTechReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [technicianReport, setTechnicianReport] = useState(null);
+  const [loadingTechReport, setLoadingTechReport] = useState(false);
+  const [techReportError, setTechReportError] = useState(null);
+
+  const fetchTechnicianReport = async (dateOverride) => {
+    if (!token || user?.role !== 'technician') return;
+    const targetDate = dateOverride || techReportDate;
+    if (!targetDate) return;
+    setLoadingTechReport(true);
+    setTechReportError(null);
+    try {
+      const res = await getTechnicianWorkReportApi(targetDate, token);
+      if (res.ok && res.data?.success) {
+        setTechnicianReport(res.data.data);
+      } else {
+        setTechReportError(res.data?.message || 'Failed to load technician work report.');
+      }
+    } catch (err) {
+      setTechReportError(err.message || 'Error fetching report.');
+    } finally {
+      setLoadingTechReport(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === 'technician') {
       fetchTechnicianData();
@@ -298,6 +360,12 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
   useEffect(() => {
     if (user?.role === 'technician' && techTab === 'earnings') {
       fetchTechnicianEarnings();
+    }
+  }, [techTab, user, token]);
+
+  useEffect(() => {
+    if (user?.role === 'technician' && techTab === 'reports' && !technicianReport) {
+      fetchTechnicianReport();
     }
   }, [techTab, user, token]);
 
@@ -467,6 +535,45 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
   // Customer & Technician Deletion Modals
   const [deletingCustomer, setDeletingCustomer] = useState(null);
   const [deletingTechnician, setDeletingTechnician] = useState(null);
+
+  // Admin Operational Reports
+  const [adminReportSubTab, setAdminReportSubTab] = useState('technician_work'); // 'technician_work' | 'customer_activity'
+  const [adminReportDate, setAdminReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [adminTechWorkReport, setAdminTechWorkReport] = useState(null);
+  const [adminCustActivityReport, setAdminCustActivityReport] = useState(null);
+  const [loadingAdminReport, setLoadingAdminReport] = useState(false);
+  const [adminReportError, setAdminReportError] = useState(null);
+
+  const fetchAdminReport = async (dateOverride, subTabOverride) => {
+    if (!token || user?.role !== 'admin') return;
+    const targetDate = dateOverride || adminReportDate;
+    const targetSubTab = subTabOverride || adminReportSubTab;
+    if (!targetDate) return;
+
+    setLoadingAdminReport(true);
+    setAdminReportError(null);
+    try {
+      if (targetSubTab === 'technician_work') {
+        const res = await getAdminTechnicianWorkReportApi(targetDate, token);
+        if (res.ok && res.data?.success) {
+          setAdminTechWorkReport(res.data.data);
+        } else {
+          setAdminReportError(res.data?.message || 'Failed to load technician work report.');
+        }
+      } else {
+        const res = await getAdminCustomerActivityReportApi(targetDate, token);
+        if (res.ok && res.data?.success) {
+          setAdminCustActivityReport(res.data.data);
+        } else {
+          setAdminReportError(res.data?.message || 'Failed to load customer activity report.');
+        }
+      }
+    } catch (err) {
+      setAdminReportError(err.message || 'Error fetching report.');
+    } finally {
+      setLoadingAdminReport(false);
+    }
+  };
 
   const fetchAdminStats = async () => {
     if (!token || user?.role !== 'admin') return;
@@ -638,6 +745,7 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
       else if (adminTab === 'payouts') fetchAdminPayouts();
       else if (adminTab === 'reviews') fetchAdminReviews();
       else if (adminTab === 'logs') fetchAdminLogs();
+      else if (adminTab === 'reports') fetchAdminReport();
     }
   }, [user, token, adminTab]);
 
@@ -917,21 +1025,68 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
             </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="hf-card p-4 mb-4">
-            <h6 className="fw-bold text-dark mb-3">Quick Actions</h6>
-            <div className="d-flex flex-wrap gap-2">
-              <Link to="/book-service" className="btn btn-primary px-4 shadow-xs">
-                <i className="bi bi-plus-lg me-1"></i> Book a Service
-              </Link>
-              <Link to="/my-bookings" className="btn btn-outline-primary px-4">
-                <i className="bi bi-card-checklist me-1"></i> My Bookings
-              </Link>
-              <Link to="/service-history" className="btn btn-outline-secondary px-4">
-                <i className="bi bi-clock-history me-1"></i> Service History
-              </Link>
-            </div>
+          {/* Customer Navigation Tabs */}
+          <div
+            className="d-flex p-1 border mb-4 gap-1"
+            style={{ backgroundColor: '#FFFDF9', borderColor: '#D8C7B5', borderRadius: '6px' }}
+            role="tablist"
+          >
+            <button
+              className="btn flex-fill py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 border-0"
+              style={{
+                backgroundColor: customerTab === 'overview' ? '#5A3E2B' : 'transparent',
+                color: customerTab === 'overview' ? '#FFFDF9' : '#4A382C',
+                borderRadius: '4px',
+              }}
+              onClick={() => setCustomerTab('overview')}
+            >
+              <i className="bi bi-grid"></i>
+              <span>Dashboard Overview</span>
+            </button>
+            <button
+              className="btn flex-fill py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 border-0"
+              style={{
+                backgroundColor: customerTab === 'reports' ? '#5A3E2B' : 'transparent',
+                color: customerTab === 'reports' ? '#FFFDF9' : '#4A382C',
+                borderRadius: '4px',
+              }}
+              onClick={() => {
+                setCustomerTab('reports');
+                fetchCustomerReport();
+              }}
+            >
+              <i className="bi bi-file-earmark-bar-graph"></i>
+              <span>Complaint & Booking Report</span>
+            </button>
           </div>
+
+          {customerTab === 'overview' && (
+            <>
+              {/* Quick Actions */}
+              <div className="hf-card p-4 mb-4">
+                <h6 className="fw-bold text-dark mb-3">Quick Actions</h6>
+                <div className="d-flex flex-wrap gap-2">
+                  <Link to="/book-service" className="btn btn-primary px-4 shadow-xs">
+                    <i className="bi bi-plus-lg me-1"></i> Book a Service
+                  </Link>
+                  <Link to="/my-bookings" className="btn btn-outline-primary px-4">
+                    <i className="bi bi-card-checklist me-1"></i> My Bookings
+                  </Link>
+                  <Link to="/service-history" className="btn btn-outline-secondary px-4">
+                    <i className="bi bi-clock-history me-1"></i> Service History
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerTab('reports');
+                      fetchCustomerReport();
+                    }}
+                    className="btn btn-outline-secondary px-4"
+                  >
+                    <i className="bi bi-file-earmark-bar-graph me-1"></i> Complaint Report
+                  </button>
+                </div>
+              </div>
 
           {/* Recent Bookings Section */}
           <div className="hf-card p-4">
@@ -1044,8 +1199,225 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
               </div>
             )}
           </div>
+        </>
+      )}
+
+      {/* Customer Complaint Report Section */}
+      {customerTab === 'reports' && (
+        <div className="d-flex flex-column gap-4">
+          {/* Date Filter Card */}
+          <div className="hf-card p-4">
+            <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+              <div>
+                <h5 className="fw-bold text-dark mb-0">
+                  <i className="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
+                  My Complaints & Bookings Report
+                </h5>
+              </div>
+              <div className="d-flex flex-wrap align-items-center gap-2">
+                <label className="fw-semibold small text-muted text-nowrap">Service Date:</label>
+                <input
+                  type="date"
+                  className="form-control form-control-sm"
+                  style={{ maxWidth: '175px', borderColor: '#D8C7B5', backgroundColor: '#FFFDF9' }}
+                  value={customerReportDate}
+                  onChange={(e) => setCustomerReportDate(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fetchCustomerReport()}
+                  disabled={loadingCustomerReport || !customerReportDate}
+                  className="btn btn-sm btn-primary fw-semibold px-3"
+                  style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B' }}
+                >
+                  {loadingCustomerReport ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-funnel me-1"></i> Generate Report
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback / Error */}
+          {customerReportError && (
+            <div className="alert alert-danger py-2 px-3 small rounded-3 mb-0">
+              <i className="bi bi-exclamation-triangle-fill me-1"></i> {customerReportError}
+            </div>
+          )}
+
+          {/* Summary Cards */}
+          <div className="row g-3">
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="hf-stat-card">
+                <div className="hf-stat-icon bg-primary-subtle text-primary">
+                  <i className="bi bi-card-checklist"></i>
+                </div>
+                <div>
+                  <div className="hf-stat-val">{customerReport?.summary?.total_complaints ?? 0}</div>
+                  <div className="hf-stat-label">Total Complaints / Bookings</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="hf-stat-card">
+                <div className="hf-stat-icon bg-success-subtle text-success">
+                  <i className="bi bi-check2-circle"></i>
+                </div>
+                <div>
+                  <div className="hf-stat-val text-success">{customerReport?.summary?.completed_complaints ?? 0}</div>
+                  <div className="hf-stat-label">Completed Services</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="hf-stat-card">
+                <div className="hf-stat-icon bg-warning-subtle text-warning">
+                  <i className="bi bi-hourglass-split"></i>
+                </div>
+                <div>
+                  <div className="hf-stat-val text-warning">{customerReport?.summary?.pending_complaints ?? 0}</div>
+                  <div className="hf-stat-label">Pending Services</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="col-12 col-sm-6 col-lg-3">
+              <div className="hf-stat-card">
+                <div className="hf-stat-icon bg-danger-subtle text-danger">
+                  <i className="bi bi-x-circle"></i>
+                </div>
+                <div>
+                  <div className="hf-stat-val text-danger">{customerReport?.summary?.cancelled_complaints ?? 0}</div>
+                  <div className="hf-stat-label">Cancelled / Rejected</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Report Table */}
+          <div className="hf-card p-0 overflow-hidden">
+            <div className="hf-card-header bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
+              <span className="fw-bold text-dark">
+                Complaints & Service Report for Date: <span className="text-primary">{customerReportDate}</span>
+              </span>
+              <span className="badge bg-secondary">
+                {customerReport?.records?.length || 0} Records
+              </span>
+            </div>
+
+            {loadingCustomerReport ? (
+              <div className="p-4">
+                <TableRowSkeleton />
+              </div>
+            ) : !customerReport || customerReport.records.length === 0 ? (
+              <div className="text-center py-5 text-muted fst-italic">
+                <i className="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                No records found for the selected date.
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.88rem' }}>
+                  <thead className="table-light">
+                    <tr className="text-uppercase small text-muted" style={{ letterSpacing: '0.5px' }}>
+                      <th className="ps-3">Customer</th>
+                      <th>Booking Code</th>
+                      <th>Complaint Description</th>
+                      <th>Complaint Media</th>
+                      <th>Detected Problem / Service</th>
+                      <th>Service Requested</th>
+                      <th>Assigned Technician</th>
+                      <th>Booking Date</th>
+                      <th>Scheduled Date</th>
+                      <th>Booking Status</th>
+                      <th>Payment Status</th>
+                      <th className="pe-3 text-end">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerReport.records.map((r) => (
+                      <tr key={r.booking_id}>
+                        <td className="ps-3 fw-semibold text-dark">{r.customer_name}</td>
+                        <td>
+                          <span className="badge bg-light text-dark border fw-bold">{r.booking_code}</span>
+                        </td>
+                        <td style={{ maxWidth: '240px' }} className="text-truncate" title={r.complaint_description}>
+                          {r.complaint_description}
+                        </td>
+                        <td>
+                          <div className="d-flex align-items-center gap-1">
+                            {r.uploaded_image_url ? (
+                              <a
+                                href={getMediaUrl(r.uploaded_image_url)}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-xs btn-outline-secondary py-0 px-1"
+                                title="View Uploaded Image"
+                              >
+                                <i className="bi bi-image"></i> Photo
+                              </a>
+                            ) : null}
+                            {r.voice_complaint_url ? (
+                              <audio
+                                controls
+                                src={getMediaUrl(r.voice_complaint_url)}
+                                style={{ height: '24px', width: '100px' }}
+                                title="Voice Complaint"
+                              ></audio>
+                            ) : null}
+                            {r.voice_transcription ? (
+                              <span className="small text-muted fst-italic ms-1" title={r.voice_transcription}>
+                                <i className="bi bi-mic text-primary"></i>
+                              </span>
+                            ) : null}
+                            {!r.uploaded_image_url && !r.voice_complaint_url && !r.voice_transcription && (
+                              <span className="text-muted small">None</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="small text-muted">{r.detected_problem_service || 'N/A'}</td>
+                        <td>
+                          <span className="badge bg-secondary-subtle text-secondary border">
+                            {r.service_requested}
+                          </span>
+                        </td>
+                        <td className="small">{r.assigned_technician}</td>
+                        <td className="small text-muted">{r.booking_date}</td>
+                        <td className="small text-muted">
+                          {r.scheduled_date} {r.scheduled_time_slot ? `(${r.scheduled_time_slot})` : ''}
+                        </td>
+                        <td>
+                          <StatusBadge status={r.booking_status} />
+                        </td>
+                        <td>
+                          <span
+                            className={`badge text-uppercase ${
+                              r.payment_status === 'paid' ? 'bg-success' : 'bg-warning text-dark'
+                            }`}
+                          >
+                            {r.payment_status}
+                          </span>
+                        </td>
+                        <td className="pe-3 text-end fw-bold text-dark">₹{r.amount}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
+    </div>
+  )}
 
       {/* =================================================================== */}
       {/* SECTION 11, 12, 13, 14: TECHNICIAN WORKSPACE */}
@@ -1239,6 +1611,22 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
                   ₹{technicianEarnings?.summary?.pending_payout}
                 </span>
               )}
+            </button>
+
+            <button
+              className="btn flex-fill py-2 fw-semibold d-flex align-items-center justify-content-center gap-2 border-0"
+              style={{
+                backgroundColor: techTab === 'reports' ? '#5A3E2B' : 'transparent',
+                color: techTab === 'reports' ? '#FFFDF9' : '#4A382C',
+                borderRadius: '4px',
+              }}
+              onClick={() => {
+                setTechTab('reports');
+                fetchTechnicianReport();
+              }}
+            >
+              <i className="bi bi-file-earmark-bar-graph"></i>
+              <span>Work Report</span>
             </button>
 
             <button
@@ -2314,6 +2702,165 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
             </div>
           )}
 
+          {/* Technician Work Report */}
+          {techTab === 'reports' && (
+            <div className="d-flex flex-column gap-4">
+              {/* Date Filter Card */}
+              <div className="hf-card p-4">
+                <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                  <div>
+                    <h5 className="fw-bold text-dark mb-0">
+                      <i className="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
+                      My Technician Work Report
+                    </h5>
+                  </div>
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    <label className="fw-semibold small text-muted text-nowrap">Service Date:</label>
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      style={{ maxWidth: '175px', borderColor: '#D8C7B5', backgroundColor: '#FFFDF9' }}
+                      value={techReportDate}
+                      onChange={(e) => setTechReportDate(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fetchTechnicianReport()}
+                      disabled={loadingTechReport || !techReportDate}
+                      className="btn btn-sm btn-primary fw-semibold px-3"
+                      style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B' }}
+                    >
+                      {loadingTechReport ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-funnel me-1"></i> Generate Report
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback / Error */}
+              {techReportError && (
+                <div className="alert alert-danger py-2 px-3 small rounded-3 mb-0">
+                  <i className="bi bi-exclamation-triangle-fill me-1"></i> {techReportError}
+                </div>
+              )}
+
+              {/* Summary Cards */}
+              <div className="row g-3">
+                <div className="col-12 col-sm-6">
+                  <div className="hf-stat-card">
+                    <div className="hf-stat-icon bg-success-subtle text-success">
+                      <i className="bi bi-check2-circle"></i>
+                    </div>
+                    <div>
+                      <div className="hf-stat-val text-success">
+                        {technicianReport?.summary?.total_jobs_completed ?? 0}
+                      </div>
+                      <div className="hf-stat-label">Total Jobs Completed on Selected Date</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="col-12 col-sm-6">
+                  <div className="hf-stat-card">
+                    <div className="hf-stat-icon bg-primary-subtle text-primary">
+                      <i className="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                      <div className="hf-stat-val text-primary">
+                        ₹{technicianReport?.summary?.total_earnings ?? '0.00'}
+                      </div>
+                      <div className="hf-stat-label">Total Earnings / Payout for Selected Date</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Report Table */}
+              <div className="hf-card p-0 overflow-hidden">
+                <div className="hf-card-header bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
+                  <span className="fw-bold text-dark">
+                    Work Report for Date: <span className="text-primary">{techReportDate}</span>
+                  </span>
+                  <span className="badge bg-secondary">
+                    {technicianReport?.records?.length || 0} Records
+                  </span>
+                </div>
+
+                {loadingTechReport ? (
+                  <div className="p-4">
+                    <TableRowSkeleton />
+                  </div>
+                ) : !technicianReport || technicianReport.records.length === 0 ? (
+                  <div className="text-center py-5 text-muted fst-italic">
+                    <i className="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                    No records found for the selected date.
+                  </div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.88rem' }}>
+                      <thead className="table-light">
+                        <tr className="text-uppercase small text-muted" style={{ letterSpacing: '0.5px' }}>
+                          <th className="ps-3">Technician</th>
+                          <th>Booking Code</th>
+                          <th>Customer Name</th>
+                          <th>Service Performed</th>
+                          <th>Customer Complaint</th>
+                          <th>Service Date</th>
+                          <th>Booking Status</th>
+                          <th>Service Amount</th>
+                          <th>Technician Payout</th>
+                          <th className="pe-3 text-end">Completion Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {technicianReport.records.map((r) => (
+                          <tr key={r.booking_id}>
+                            <td className="ps-3 fw-semibold text-dark">{r.technician_name}</td>
+                            <td>
+                              <span className="badge bg-light text-dark border fw-bold">{r.booking_code}</span>
+                            </td>
+                            <td>{r.customer_name}</td>
+                            <td>
+                              <span className="badge bg-secondary-subtle text-secondary border">
+                                {r.service_performed}
+                              </span>
+                            </td>
+                            <td style={{ maxWidth: '220px' }} className="text-truncate" title={r.customer_complaint}>
+                              {r.customer_complaint}
+                            </td>
+                            <td className="small text-muted">{r.service_date}</td>
+                            <td>
+                              <StatusBadge status={r.booking_status} />
+                            </td>
+                            <td className="fw-semibold">₹{r.service_amount}</td>
+                            <td className="text-success fw-bold">₹{r.technician_payout}</td>
+                            <td className="pe-3 text-end">
+                              <span
+                                className={`badge ${
+                                  r.completion_status === 'Completed' ? 'bg-success' : 'bg-warning text-dark'
+                                }`}
+                              >
+                                {r.completion_status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Bottom / Footer Navigation Area for Technician */}
           <div className="mt-5 pt-3 border-top text-start" style={{ borderColor: '#D8C7B5' }}>
             <button
@@ -2407,6 +2954,7 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
               { key: 'payments', label: 'Payments', icon: 'bi-credit-card' },
               { key: 'payouts', label: 'Technician Payouts', icon: 'bi-wallet2' },
               { key: 'reviews', label: 'Reviews', icon: 'bi-star' },
+              { key: 'reports', label: 'Reports', icon: 'bi-file-earmark-bar-graph' },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -3062,6 +3610,328 @@ export default function Dashboard({ healthData, healthLoading, onRefreshHealth }
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Admin Operational Reports Section */}
+          {adminTab === 'reports' && (
+            <div className="d-flex flex-column gap-4">
+              {/* Report Controls & Filter Card */}
+              <div className="hf-card p-4">
+                <div className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center gap-3">
+                  <div>
+                    <h5 className="fw-bold text-dark mb-0">
+                      <i className="bi bi-file-earmark-bar-graph me-2 text-primary"></i>
+                      Platform Reports & Oversight
+                    </h5>
+                  </div>
+
+                  {/* Sub-report Selector & Date Picker */}
+                  <div className="d-flex flex-wrap align-items-center gap-2">
+                    <div className="btn-group btn-group-sm me-2" role="group">
+                      <button
+                        type="button"
+                        className={`btn ${
+                          adminReportSubTab === 'technician_work' ? 'btn-primary' : 'btn-outline-secondary'
+                        }`}
+                        style={
+                          adminReportSubTab === 'technician_work'
+                            ? { backgroundColor: '#5A3E2B', borderColor: '#5A3E2B', color: '#FFFDF9' }
+                            : { borderColor: '#D8C7B5', color: '#4A382C' }
+                        }
+                        onClick={() => {
+                          setAdminReportSubTab('technician_work');
+                          fetchAdminReport(adminReportDate, 'technician_work');
+                        }}
+                      >
+                        <i className="bi bi-tools me-1"></i> Technician Work
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn ${
+                          adminReportSubTab === 'customer_activity' ? 'btn-primary' : 'btn-outline-secondary'
+                        }`}
+                        style={
+                          adminReportSubTab === 'customer_activity'
+                            ? { backgroundColor: '#5A3E2B', borderColor: '#5A3E2B', color: '#FFFDF9' }
+                            : { borderColor: '#D8C7B5', color: '#4A382C' }
+                        }
+                        onClick={() => {
+                          setAdminReportSubTab('customer_activity');
+                          fetchAdminReport(adminReportDate, 'customer_activity');
+                        }}
+                      >
+                        <i className="bi bi-people me-1"></i> Customer Activity
+                      </button>
+                    </div>
+
+                    <label className="fw-semibold small text-muted text-nowrap">Date:</label>
+                    <input
+                      type="date"
+                      className="form-control form-control-sm"
+                      style={{ maxWidth: '175px', borderColor: '#D8C7B5', backgroundColor: '#FFFDF9' }}
+                      value={adminReportDate}
+                      onChange={(e) => setAdminReportDate(e.target.value)}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => fetchAdminReport()}
+                      disabled={loadingAdminReport || !adminReportDate}
+                      className="btn btn-sm btn-primary fw-semibold px-3"
+                      style={{ backgroundColor: '#5A3E2B', borderColor: '#5A3E2B' }}
+                    >
+                      {loadingAdminReport ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <i className="bi bi-funnel me-1"></i> Generate Report
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback / Error */}
+              {adminReportError && (
+                <div className="alert alert-danger py-2 px-3 small rounded-3 mb-0">
+                  <i className="bi bi-exclamation-triangle-fill me-1"></i> {adminReportError}
+                </div>
+              )}
+
+              {/* 1. TECHNICIAN WORK REPORT VIEW */}
+              {adminReportSubTab === 'technician_work' && (
+                <>
+                  {/* Summary Cards */}
+                  <div className="row g-3">
+                    <div className="col-12 col-sm-4">
+                      <div className="hf-stat-card">
+                        <div className="hf-stat-icon bg-success-subtle text-success">
+                          <i className="bi bi-check2-all"></i>
+                        </div>
+                        <div>
+                          <div className="hf-stat-val text-success">
+                            {adminTechWorkReport?.summary?.total_completed_services ?? 0}
+                          </div>
+                          <div className="hf-stat-label">Total Completed Services</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-sm-4">
+                      <div className="hf-stat-card">
+                        <div className="hf-stat-icon bg-primary-subtle text-primary">
+                          <i className="bi bi-receipt"></i>
+                        </div>
+                        <div>
+                          <div className="hf-stat-val text-primary">
+                            ₹{adminTechWorkReport?.summary?.total_service_amount ?? '0.00'}
+                          </div>
+                          <div className="hf-stat-label">Total Service Amount</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-sm-4">
+                      <div className="hf-stat-card">
+                        <div className="hf-stat-icon bg-warning-subtle text-warning">
+                          <i className="bi bi-wallet2"></i>
+                        </div>
+                        <div>
+                          <div className="hf-stat-val text-warning">
+                            ₹{adminTechWorkReport?.summary?.total_technician_payout ?? '0.00'}
+                          </div>
+                          <div className="hf-stat-label">Total Technician Payout</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technician Work Report Table */}
+                  <div className="hf-card p-0 overflow-hidden">
+                    <div className="hf-card-header bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
+                      <span className="fw-bold text-dark">
+                        Technician Work Completed on: <span className="text-primary">{adminReportDate}</span>
+                      </span>
+                      <span className="badge bg-secondary">
+                        {adminTechWorkReport?.records?.length || 0} Records
+                      </span>
+                    </div>
+
+                    {loadingAdminReport ? (
+                      <div className="p-4">
+                        <TableRowSkeleton />
+                      </div>
+                    ) : !adminTechWorkReport || adminTechWorkReport.records.length === 0 ? (
+                      <div className="text-center py-5 text-muted fst-italic">
+                        <i className="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                        No records found for the selected date.
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.88rem' }}>
+                          <thead className="table-light">
+                            <tr className="text-uppercase small text-muted" style={{ letterSpacing: '0.5px' }}>
+                              <th className="ps-3">Technician Name</th>
+                              <th>Technician ID/Profile</th>
+                              <th>Booking ID / Code</th>
+                              <th>Customer Name</th>
+                              <th>Service Performed</th>
+                              <th>Service Date</th>
+                              <th>Completion Status</th>
+                              <th>Service Amount</th>
+                              <th className="pe-3 text-end">Technician Payout</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminTechWorkReport.records.map((r) => (
+                              <tr key={r.booking_id}>
+                                <td className="ps-3 fw-semibold text-dark">{r.technician_name}</td>
+                                <td>
+                                  <span className="badge bg-light text-dark border">{r.technician_id}</span>
+                                </td>
+                                <td>
+                                  <span className="badge bg-light text-dark border fw-bold">{r.booking_code}</span>
+                                </td>
+                                <td>{r.customer_name}</td>
+                                <td>
+                                  <span className="badge bg-secondary-subtle text-secondary border">
+                                    {r.service_performed}
+                                  </span>
+                                </td>
+                                <td className="small text-muted">{r.service_date}</td>
+                                <td>
+                                  <span className="badge bg-success">{r.completion_status}</span>
+                                </td>
+                                <td className="fw-semibold">₹{r.service_amount}</td>
+                                <td className="pe-3 text-end text-success fw-bold">₹{r.technician_payout}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* 2. CUSTOMER ACTIVITY REPORT VIEW */}
+              {adminReportSubTab === 'customer_activity' && (
+                <>
+                  {/* Summary Cards */}
+                  <div className="row g-3">
+                    <div className="col-12 col-sm-6">
+                      <div className="hf-stat-card">
+                        <div className="hf-stat-icon bg-info-subtle text-info">
+                          <i className="bi bi-people"></i>
+                        </div>
+                        <div>
+                          <div className="hf-stat-val text-info">
+                            {adminCustActivityReport?.summary?.total_bookings ?? 0}
+                          </div>
+                          <div className="hf-stat-label">Total Bookings</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="col-12 col-sm-6">
+                      <div className="hf-stat-card">
+                        <div className="hf-stat-icon bg-primary-subtle text-primary">
+                          <i className="bi bi-currency-rupee"></i>
+                        </div>
+                        <div>
+                          <div className="hf-stat-val text-primary">
+                            ₹{adminCustActivityReport?.summary?.total_amount ?? '0.00'}
+                          </div>
+                          <div className="hf-stat-label">Total Amount</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer Activity Report Table */}
+                  <div className="hf-card p-0 overflow-hidden">
+                    <div className="hf-card-header bg-light p-3 border-bottom d-flex justify-content-between align-items-center">
+                      <span className="fw-bold text-dark">
+                        Customer Activity Report for Date: <span className="text-primary">{adminReportDate}</span>
+                      </span>
+                      <span className="badge bg-secondary">
+                        {adminCustActivityReport?.records?.length || 0} Records
+                      </span>
+                    </div>
+
+                    {loadingAdminReport ? (
+                      <div className="p-4">
+                        <TableRowSkeleton />
+                      </div>
+                    ) : !adminCustActivityReport || adminCustActivityReport.records.length === 0 ? (
+                      <div className="text-center py-5 text-muted fst-italic">
+                        <i className="bi bi-inbox fs-2 d-block mb-2 text-secondary opacity-50"></i>
+                        No records found for the selected date.
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-hover align-middle mb-0" style={{ fontSize: '0.88rem' }}>
+                          <thead className="table-light">
+                            <tr className="text-uppercase small text-muted" style={{ letterSpacing: '0.5px' }}>
+                              <th className="ps-3">Customer Name</th>
+                              <th>Customer ID</th>
+                              <th>Booking ID / Code</th>
+                              <th>Service Requested</th>
+                              <th>Complaint Description</th>
+                              <th>Assigned Technician</th>
+                              <th>Service Date</th>
+                              <th>Booking Status</th>
+                              <th>Payment Status</th>
+                              <th className="pe-3 text-end">Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {adminCustActivityReport.records.map((r) => (
+                              <tr key={r.booking_id}>
+                                <td className="ps-3 fw-semibold text-dark">{r.customer_name}</td>
+                                <td>
+                                  <span className="badge bg-light text-dark border">CUST-{r.customer_id}</span>
+                                </td>
+                                <td>
+                                  <span className="badge bg-light text-dark border fw-bold">{r.booking_code}</span>
+                                </td>
+                                <td>
+                                  <span className="badge bg-secondary-subtle text-secondary border">
+                                    {r.service_requested}
+                                  </span>
+                                </td>
+                                <td style={{ maxWidth: '240px' }} className="text-truncate" title={r.complaint_description}>
+                                  {r.complaint_description}
+                                </td>
+                                <td className="small">{r.assigned_technician}</td>
+                                <td className="small text-muted">{r.service_date}</td>
+                                <td>
+                                  <StatusBadge status={r.booking_status} />
+                                </td>
+                                <td>
+                                  <span
+                                    className={`badge text-uppercase ${
+                                      r.payment_status === 'paid' ? 'bg-success' : 'bg-warning text-dark'
+                                    }`}
+                                  >
+                                    {r.payment_status}
+                                  </span>
+                                </td>
+                                <td className="pe-3 text-end fw-bold text-dark">₹{r.amount}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
           )}

@@ -19,6 +19,10 @@ import {
   getAdminPayouts,
   markPayoutAsPaid,
 } from '../controllers/payoutController.js';
+import {
+  getAdminTechnicianWorkReport,
+  getAdminCustomerActivityReport,
+} from '../controllers/reportController.js';
 
 const router = express.Router();
 
@@ -56,5 +60,9 @@ router.get('/audit-logs', getAdminAuditLogs);
 router.get('/payouts', getAdminPayouts);
 router.put('/payouts/:id/mark-paid', markPayoutAsPaid);
 router.put('/payouts/:id/pay', markPayoutAsPaid);
+
+// 9. Operational Reports
+router.get('/reports/technician-work', getAdminTechnicianWorkReport);
+router.get('/reports/customer-activity', getAdminCustomerActivityReport);
 
 export default router;
